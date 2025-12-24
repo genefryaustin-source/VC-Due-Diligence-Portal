@@ -1,5 +1,5 @@
 streamlit==1.32.0
-pandas==2.1.4              # <-- Changed to 2.1.4 (stable on Python 3.12/3.13)
+pandas==2.3.0              # <-- Changed to 2.1.4 (stable on Python 3.12/3.13)
 numpy==1.26.4
 altair==5.2.0
 requests==2.31.0
