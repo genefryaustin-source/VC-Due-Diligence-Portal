@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+altair
+requests
+fpdf2
+scipy
+streamlit-authenticator
+SQLAlchemy
+validators
+boto3
+google-cloud-storage
+psycopg2-binary  # Optional - only if using PostgreSQL instead of SQLite
