@@ -206,7 +206,21 @@ if authentication_status:
         "Scenario Planning",
         "Generate Report"
     ]
-    page = st.sidebar.selectbox("Navigate", pages)
+
+    # Navigation fix: Use session_state to override sidebar selection
+    if "selected_page" not in st.session_state:
+        st.session_state.selected_page = pages[0]
+
+    # Sidebar selectbox
+    sidebar_selection = st.sidebar.selectbox("Navigate", pages, index=pages.index(st.session_state.selected_page))
+
+    # Update page if sidebar changed
+    if sidebar_selection != st.session_state.selected_page:
+        st.session_state.selected_page = sidebar_selection
+        st.rerun()
+
+    # Set page to session state value
+    page = st.session_state.selected_page
 
     if user.role == 'admin':
         st.sidebar.header("Super Admin Controls")
@@ -320,8 +334,8 @@ if authentication_status:
                 st.write(status)
             with col3:
                 if st.button("Go to Section", key=f"goto_{section}"):
-                    st.session_state.page = section
-                    st.experimental_rerun()
+                    st.session_state.selected_page = section
+                    st.rerun()
 
         if st.button("Download Checklist PDF"):
             pdf = FPDF()
@@ -441,7 +455,7 @@ if authentication_status:
                     if refresh_token:
                         st.session_state['linkedin_refresh'] = refresh_token
                     st.success("LinkedIn token obtained.")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"LinkedIn token exchange failed: {e}")
             elif service == "angellist":
@@ -465,7 +479,7 @@ if authentication_status:
                     st.session_state['angellist_token'] = access_token
                     st.session_state['angellist_expires'] = time.time() + expires_in
                     st.success("AngelList token obtained.")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"AngelList token exchange failed: {e}")
             elif service == "google":
@@ -492,7 +506,7 @@ if authentication_status:
                     if refresh_token:
                         st.session_state['google_refresh'] = refresh_token
                     st.success("Google token obtained.")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Google token exchange failed: {e}")
 
