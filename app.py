@@ -785,17 +785,22 @@ if authentication_status:
                 if not openai_client:
                     st.warning("OpenAI API key not configured — GPT-4o search disabled.")
                 else:
-                    ai_query = st.text_area("Describe the type of startup you're looking for", value="AI-powered SaaS companies in healthcare with >$1M ARR founded in the last 2 years")
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        ai_query = st.text_area("Describe the type of startup you're looking for", value="AI-powered SaaS companies in healthcare with >$1M ARR founded in the last 2 years")
+                    with col2:
+                        num_leads = st.selectbox("Number of leads", [10, 15, 20, 25, 30], index=0)
                     if st.button("Generate Startup Leads with GPT-4o"):
                         try:
+                            prompt = f"You are a VC deal sourcing expert. Generate exactly {num_leads} promising startups matching this criteria: {ai_query}. For each startup include: name, short description, estimated ARR, funding stage, and why it's a good opportunity. Number them 1 to {num_leads}."
                             response = openai_client.chat.completions.create(
                                 model="gpt-4o",
                                 messages=[
-                                    {"role": "system", "content": "You are a VC deal sourcing expert. Generate a list of 10 promising startups matching the user's criteria. Include name, short description, estimated ARR, funding stage, and why it's a good opportunity."},
-                                    {"role": "user", "content": ai_query}
+                                    {"role": "system", "content": "You are a VC deal sourcing expert."},
+                                    {"role": "user", "content": prompt}
                                 ],
                                 temperature=0.7,
-                                max_tokens=1500
+                                max_tokens=2000
                             )
                             gpt_results = response.choices[0].message.content
                             st.markdown("### GPT-4o Generated Leads")
@@ -803,6 +808,7 @@ if authentication_status:
                             deal_data = {
                                 "method": "OpenAI GPT-4o Search",
                                 "query": ai_query,
+                                "num_leads_requested": num_leads,
                                 "results": gpt_results,
                                 "documents": file_urls
                             }
@@ -816,16 +822,18 @@ if authentication_status:
                 if not gemini_api_key:
                     st.warning("Google Gemini API key not configured — Gemini search disabled.")
                 else:
-                    gemini_query = st.text_area("Describe the type of startup or market you're researching", value="Fast-growing fintech startups in Southeast Asia with recent funding")
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        gemini_query = st.text_area("Describe the type of startup or market you're researching", value="Fast-growing fintech startups in Southeast Asia with recent funding")
+                    with col2:
+                        num_leads = st.selectbox("Number of leads", [10, 15, 20, 25, 30], index=0, key="gemini_num")
                     if st.button("Generate Leads with Gemini"):
                         try:
-                            # Updated to current stable model (Dec 2025)
                             url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+                            prompt = f"You are a VC deal sourcing expert. Generate exactly {num_leads} promising startups matching this criteria: {gemini_query}. For each startup include: name, description, estimated ARR, funding stage, and investment rationale. Number them 1 to {num_leads}."
                             payload = {
                                 "contents": [{
-                                    "parts": [{
-                                        "text": f"You are a VC deal sourcing expert. Generate a list of 10 promising startups matching this criteria: {gemini_query}. Include name, description, estimated ARR, funding stage, and investment rationale."
-                                    }]
+                                    "parts": [{"text": prompt}]
                                 }]
                             }
                             response = requests.post(url, json=payload)
@@ -837,6 +845,7 @@ if authentication_status:
                             deal_data = {
                                 "method": "Google Gemini Search",
                                 "query": gemini_query,
+                                "num_leads_requested": num_leads,
                                 "results": gemini_results,
                                 "documents": file_urls
                             }
@@ -844,7 +853,7 @@ if authentication_status:
                             st.success("Gemini leads saved.")
                         except requests.exceptions.HTTPError as e:
                             if e.response.status_code == 404:
-                                st.error("Gemini model not found (404). The model 'gemini-1.5-flash' is retired. Updated to 'gemini-2.5-flash' — if still failing, check your API key has access to latest models.")
+                                st.error("Gemini model not found (404). Try 'gemini-2.5-flash' or check your key permissions.")
                             elif e.response.status_code == 401:
                                 st.error("Unauthorized (401). Invalid or restricted Gemini API key.")
                             else:
@@ -859,7 +868,11 @@ if authentication_status:
                 if not grok_api_key:
                     st.warning("xAI Grok API key not configured — Grok search disabled.")
                 else:
-                    grok_query = st.text_area("Describe the type of startup or market you're researching", value="Emerging web3 startups in gaming with recent funding")
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        grok_query = st.text_area("Describe the type of startup or market you're researching", value="Emerging web3 startups in gaming with recent funding")
+                    with col2:
+                        num_leads = st.selectbox("Number of leads", [10, 15, 20, 25, 30], index=0, key="grok_num")
                     if st.button("Generate Leads with Grok"):
                         try:
                             url = "https://api.x.ai/v1/chat/completions"
@@ -867,14 +880,15 @@ if authentication_status:
                                 "Authorization": f"Bearer {grok_api_key}",
                                 "Content-Type": "application/json"
                             }
+                            prompt = f"You are a VC deal sourcing expert. Generate exactly {num_leads} promising startups matching this criteria: {grok_query}. For each startup include: name, description, estimated ARR, funding stage, and investment rationale. Number them 1 to {num_leads}."
                             payload = {
-                                "model": "grok-4",  # Current model as of Dec 2025
+                                "model": "grok-4",
                                 "messages": [
                                     {"role": "system", "content": "You are a VC deal sourcing expert."},
-                                    {"role": "user", "content": grok_query}
+                                    {"role": "user", "content": prompt}
                                 ],
                                 "temperature": 0.7,
-                                "max_tokens": 1500
+                                "max_tokens": 2000
                             }
                             response = requests.post(url, headers=headers, json=payload, timeout=60)
                             response.raise_for_status()
@@ -885,6 +899,7 @@ if authentication_status:
                             deal_data = {
                                 "method": "xAI Grok Search",
                                 "query": grok_query,
+                                "num_leads_requested": num_leads,
                                 "results": grok_results,
                                 "documents": file_urls
                             }
@@ -892,9 +907,9 @@ if authentication_status:
                             st.success("Grok leads saved.")
                         except requests.exceptions.HTTPError as e:
                             if e.response.status_code == 404:
-                                st.error("Grok API endpoint not found (404). Possible causes: Invalid API key, no access to chat endpoint, or model not available. Check your xAI console and try model 'grok-4' or 'grok-3'.")
+                                st.error("Grok API endpoint not found (404). Check your key and model access on x.ai.")
                             elif e.response.status_code == 401:
-                                st.error("Unauthorized (401). Your Grok API key is invalid or lacks chat access.")
+                                st.error("Unauthorized (401). Invalid Grok API key.")
                             else:
                                 st.error(f"Grok API error: {e.response.status_code} - {e.response.text}")
                         except requests.exceptions.Timeout:
