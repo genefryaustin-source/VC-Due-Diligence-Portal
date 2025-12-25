@@ -265,37 +265,41 @@ if authentication_status:
             st.sidebar.success(f"Active Deal: **{current_deal.company_name}** ({current_deal.stage})")
 
     # ================================
-    # API Keys - ONLY from Streamlit Cloud Dashboard Secrets
+    # API Keys - ONLY from Streamlit Cloud Dashboard Secrets (with defensive checks)
     # ================================
 
     openai_api_key = st.secrets.get("OPENAI_API_KEY")
-    if openai_api_key:
-        openai_client = OpenAI(api_key=openai_api_key)
-        st.sidebar.success("OpenAI API key loaded from Streamlit secrets.")
+    if openai_api_key and openai_api_key.strip():
+        try:
+            openai_client = OpenAI(api_key=openai_api_key)
+            st.sidebar.success("OpenAI API key loaded from Streamlit secrets.")
+        except Exception as e:
+            openai_client = None
+            st.sidebar.error(f"Failed to initialize OpenAI client: {e}")
     else:
         openai_client = None
-        st.sidebar.warning("OpenAI API key not found in Streamlit secrets.")
+        st.sidebar.warning("OPENAI_API_KEY not found or empty in Streamlit secrets.")
 
     gemini_api_key = st.secrets.get("GEMINI_API_KEY")
-    if gemini_api_key:
+    if gemini_api_key and gemini_api_key.strip():
         st.sidebar.success("Google Gemini API key loaded from Streamlit secrets.")
     else:
         gemini_api_key = None
-        st.sidebar.warning("Google Gemini API key not found in Streamlit secrets.")
+        st.sidebar.warning("GEMINI_API_KEY not found or empty in Streamlit secrets.")
 
     grok_api_key = st.secrets.get("GROK_API_KEY")
-    if grok_api_key:
+    if grok_api_key and grok_api_key.strip():
         st.sidebar.success("xAI Grok API key loaded from Streamlit secrets.")
     else:
         grok_api_key = None
-        st.sidebar.warning("xAI Grok API key not found in Streamlit secrets.")
+        st.sidebar.warning("GROK_API_KEY not found or empty in Streamlit secrets.")
 
     linkup_api_key = st.secrets.get("LINKUP_API_KEY")
-    if linkup_api_key:
+    if linkup_api_key and linkup_api_key.strip():
         st.sidebar.success("LinkUp API key loaded from Streamlit secrets.")
     else:
         linkup_api_key = None
-        st.sidebar.warning("LinkUp API key not found in Streamlit secrets.")
+        st.sidebar.warning("LINKUP_API_KEY not found or empty in Streamlit secrets.")
 
     # Generic save function
     def save_analysis(section, save_data):
@@ -864,7 +868,7 @@ if authentication_status:
                                 "Content-Type": "application/json"
                             }
                             payload = {
-                                "model": "grok-4",  # Updated to current model as of Dec 2025
+                                "model": "grok-4",  # Current model as of Dec 2025
                                 "messages": [
                                     {"role": "system", "content": "You are a VC deal sourcing expert."},
                                     {"role": "user", "content": grok_query}
