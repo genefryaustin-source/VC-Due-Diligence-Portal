@@ -1,0 +1,14 @@
+credentials:
+  usernames:
+    admin:
+      email: admin@example.com
+      name: Admin User
+      password: admin123  # Plain text - will be auto-hashed
+    analyst:
+      email: analyst@example.com
+      name: Analyst User
+      password: your_analyst_password_here  # Change to whatever you want
+cookie:
+  expiry_days: 30
+  key: vc_portal_random_key  # Keep this secret/random
+  name: vc_portal_cookie
