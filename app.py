@@ -22,6 +22,12 @@ import urllib.parse
 import time
 from openai import OpenAI
 
+# Text extraction libraries
+from docx import Document
+from pptx import Presentation
+import PyPDF2
+import re
+
 # ================================
 # Storage Backend - S3, GCS, or Local
 # ================================
@@ -44,9 +50,9 @@ if STORAGE_BACKEND == 's3':
                 region_name=S3_REGION
             )
             s3_client.head_bucket(Bucket=S3_BUCKET)
-            st.success("Connected to AWS S3.")
+            st.sidebar.success("Connected to AWS S3.")
         except Exception as e:
-            st.warning(f"S3 connection failed: {e}. Falling back to local.")
+            st.sidebar.warning(f"S3 connection failed: {e}. Falling back to local.")
             STORAGE_BACKEND = 'local'
 
 elif STORAGE_BACKEND == 'gcs':
@@ -58,14 +64,17 @@ elif STORAGE_BACKEND == 'gcs':
             gcs_client = storage.Client.from_service_account_info(creds_dict) if creds_dict else storage.Client()
             bucket = gcs_client.bucket(GCS_BUCKET)
             bucket.blob("test").upload_from_string("test")
-            st.success("Connected to Google Cloud Storage.")
+            st.sidebar.success("Connected to Google Cloud Storage.")
         except Exception as e:
-            st.warning(f"GCS connection failed: {e}. Falling back to local.")
+            st.sidebar.warning(f"GCS connection failed: {e}. Falling back to local.")
             STORAGE_BACKEND = 'local'
 
 if STORAGE_BACKEND == 'local':
     LOCAL_UPLOAD_DIR = "uploaded_documents"
-    os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+    try:
+        os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+    except Exception as e:
+        st.error(f"Failed to create local upload directory: {e}")
 
 def upload_file_to_storage(file):
     """Upload file to configured storage backend and return public URL or local path."""
@@ -78,7 +87,7 @@ def upload_file_to_storage(file):
             url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{filename}"
             return url, True
         except Exception as e:
-            st.error(f"S3 upload failed: {e}")
+            st.error(f"S3 upload failed for {file.name}: {e}")
             return None, False
     elif STORAGE_BACKEND == 'gcs' and gcs_client:
         try:
@@ -89,13 +98,47 @@ def upload_file_to_storage(file):
             url = blob.public_url
             return url, True
         except Exception as e:
-            st.error(f"GCS upload failed: {e}")
+            st.error(f"GCS upload failed for {file.name}: {e}")
             return None, False
     else:
         file_path = os.path.join(LOCAL_UPLOAD_DIR, filename)
-        with open(file_path, "wb") as f:
-            f.write(file.getbuffer())
-        return file_path, False
+        try:
+            with open(file_path, "wb") as f:
+                f.write(file.getbuffer())
+            url = f"file://{file_path}"
+            return url, True
+        except Exception as e:
+            st.error(f"Local upload failed for {file.name}: {e}")
+            return None, False
+
+# Text extraction from common document types
+def extract_text_from_file(file):
+    file_type = file.name.lower().split('.')[-1]
+    file.seek(0)
+    try:
+        if file_type == 'docx':
+            doc = Document(file)
+            return "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+        elif file_type == 'pptx':
+            prs = Presentation(file)
+            text = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        text.append(shape.text.strip())
+            return "\n".join([t for t in text if t])
+        elif file_type == 'pdf':
+            reader = PyPDF2.PdfReader(file)
+            text = []
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text.append(page_text)
+            return "\n".join(text)
+        else:
+            return f"[Unsupported file type: {file_type} – no text extracted]"
+    except Exception as e:
+        return f"[Error extracting text from {file.name}: {str(e)}]"
 
 # ================================
 # Database Configuration - Multi-Deal Support
@@ -142,7 +185,7 @@ class Analysis(Base):
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     deal = relationship("Deal", back_populates="analyses")
 
-Base.metadata.create_all(engine)  # Creates tables if they don't exist (no drop_all to preserve data)
+Base.metadata.create_all(engine)
 
 # ================================
 # Authentication
@@ -232,10 +275,204 @@ if authentication_status:
         if current_deal:
             st.sidebar.success(f"Active Deal: **{current_deal.company_name}** ({current_deal.stage})")
 
-    # OpenAI Client for AI Summaries
+    # OpenAI Client
     openai_client = None
     if "OPENAI_API_KEY" in st.secrets and st.secrets.get("OPENAI_API_KEY"):
         openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        st.sidebar.success("OpenAI API key loaded from Streamlit secrets.")
+    elif os.getenv("OPENAI_API_KEY"):
+        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        st.sidebar.success("OpenAI API key loaded from environment variable.")
+    else:
+        st.sidebar.warning("OpenAI API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+
+    # Gemini API Key
+    gemini_api_key = None
+    if "GEMINI_API_KEY" in st.secrets and st.secrets.get("GEMINI_API_KEY"):
+        gemini_api_key = st.secrets["GEMINI_API_KEY"]
+        st.sidebar.success("Google Gemini API key loaded from Streamlit secrets.")
+    elif os.getenv("GEMINI_API_KEY"):
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        st.sidebar.success("Google Gemini API key loaded from environment variable.")
+    else:
+        st.sidebar.warning("Google Gemini API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+
+    # Grok (xAI) API Key
+    grok_api_key = None
+    if "GROK_API_KEY" in st.secrets and st.secrets.get("GROK_API_KEY"):
+        grok_api_key = st.secrets["GROK_API_KEY"]
+        st.sidebar.success("xAI Grok API key loaded from Streamlit secrets.")
+    elif os.getenv("GROK_API_KEY"):
+        grok_api_key = os.getenv("GROK_API_KEY")
+        st.sidebar.success("xAI Grok API key loaded from environment variable.")
+    else:
+        st.sidebar.warning("xAI Grok API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+
+    # LinkUp API Key
+    linkup_api_key = None
+    if "LINKUP_API_KEY" in st.secrets and st.secrets.get("LINKUP_API_KEY"):
+        linkup_api_key = st.secrets["LINKUP_API_KEY"]
+        st.sidebar.success("LinkUp API key loaded from Streamlit secrets.")
+    elif os.getenv("LINKUP_API_KEY"):
+        linkup_api_key = os.getenv("LINKUP_API_KEY")
+        st.sidebar.success("LinkUp API key loaded from environment variable.")
+    else:
+        st.sidebar.warning("LinkUp API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+
+    # Token Expiry Check Helper
+    def is_token_expired(expires_key):
+        expires = st.session_state.get(expires_key)
+        if expires and time.time() > expires:
+            return True
+        return False
+
+    # Token Refresh Helper
+    def refresh_token(service):
+        if service == "linkedin":
+            client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
+            client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
+            refresh_token = st.session_state.get('linkedin_refresh')
+            if not refresh_token:
+                st.error("No refresh token. Re-authenticate.")
+                return False
+            try:
+                refresh_url = "https://www.linkedin.com/oauth/v2/accessToken"
+                refresh_data = {
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                response = requests.post(refresh_url, data=refresh_data)
+                response.raise_for_status()
+                token_json = response.json()
+                new_token = token_json.get("access_token")
+                new_expires = time.time() + token_json.get("expires_in", 3600)
+                new_refresh = token_json.get("refresh_token", refresh_token)
+                st.session_state['linkedin_token'] = new_token
+                st.session_state['linkedin_expires'] = new_expires
+                st.session_state['linkedin_refresh'] = new_refresh
+                st.success("LinkedIn token refreshed.")
+                return True
+            except Exception as e:
+                st.error(f"Refresh failed: {e}")
+                return False
+        elif service == "angellist":
+            st.info("AngelList does not support refresh tokens. Re-authenticate.")
+            return False
+        elif service == "google":
+            client_id = st.secrets.get("GOOGLE_CLIENT_ID")
+            client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
+            refresh_token = st.session_state.get('google_refresh')
+            if not refresh_token:
+                st.error("No refresh token. Re-authenticate.")
+                return False
+            try:
+                refresh_url = "https://oauth2.googleapis.com/token"
+                refresh_data = {
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                response = requests.post(refresh_url, data=refresh_data)
+                response.raise_for_status()
+                token_json = response.json()
+                new_token = token_json.get("access_token")
+                new_expires = time.time() + token_json.get("expires_in", 3600)
+                st.session_state['google_token'] = new_token
+                st.session_state['google_expires'] = new_expires
+                st.success("Google token refreshed.")
+                return True
+            except Exception as e:
+                st.error(f"Google refresh failed: {e}")
+                return False
+
+    # OAuth Callback Handling
+    query_params = st.query_params
+    code = query_params.get("code")
+
+    if code:
+        st.info("OAuth callback detected. Processing token...")
+        service = st.session_state.get('oauth_service')
+        if service == "linkedin":
+            client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
+            client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
+            redirect_uri = st.secrets.get("LINKEDIN_REDIRECT_URI")
+            try:
+                token_url = "https://www.linkedin.com/oauth/v2/accessToken"
+                token_data = {
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                response = requests.post(token_url, data=token_data)
+                response.raise_for_status()
+                token_json = response.json()
+                access_token = token_json.get("access_token")
+                expires_in = token_json.get("expires_in", 3600)
+                refresh_token = token_json.get("refresh_token")
+                st.session_state['linkedin_token'] = access_token
+                st.session_state['linkedin_expires'] = time.time() + expires_in
+                if refresh_token:
+                    st.session_state['linkedin_refresh'] = refresh_token
+                st.success("LinkedIn token obtained.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"LinkedIn token exchange failed: {e}")
+        elif service == "angellist":
+            client_id = st.secrets.get("ANGELLIST_CLIENT_ID")
+            client_secret = st.secrets.get("ANGELLIST_CLIENT_SECRET")
+            redirect_uri = st.secrets.get("ANGELLIST_REDIRECT_URI")
+            try:
+                token_url = "https://angel.co/api/oauth/token"
+                token_data = {
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                response = requests.post(token_url, data=token_data)
+                response.raise_for_status()
+                token_json = response.json()
+                access_token = token_json.get("access_token")
+                expires_in = token_json.get("expires_in", 3600)
+                st.session_state['angellist_token'] = access_token
+                st.session_state['angellist_expires'] = time.time() + expires_in
+                st.success("AngelList token obtained.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"AngelList token exchange failed: {e}")
+        elif service == "google":
+            client_id = st.secrets.get("GOOGLE_CLIENT_ID")
+            client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
+            redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
+            try:
+                token_url = "https://oauth2.googleapis.com/token"
+                token_data = {
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                response = requests.post(token_url, data=token_data)
+                response.raise_for_status()
+                token_json = response.json()
+                access_token = token_json.get("access_token")
+                expires_in = token_json.get("expires_in", 3600)
+                refresh_token = token_json.get("refresh_token")
+                st.session_state['google_token'] = access_token
+                st.session_state['google_expires'] = time.time() + expires_in
+                if refresh_token:
+                    st.session_state['google_refresh'] = refresh_token
+                st.success("Google token obtained.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Google token exchange failed: {e}")
 
     # Generic save function
     def save_analysis(section, save_data):
@@ -318,7 +555,7 @@ if authentication_status:
                         data = json.loads(a.data)
                         if "score" in data:
                             scores.append(data["score"])
-                    except:
+                    except Exception:
                         pass
             avg_score = np.mean(scores) if scores else 50
             risk = "Low" if avg_score >= 80 else "Medium" if avg_score >= 50 else "High"
@@ -368,7 +605,7 @@ if authentication_status:
                             data = json.loads(a.data)
                             if "score" in data:
                                 scores.append(data["score"])
-                        except:
+                        except Exception:
                             pass
                 avg = np.mean(scores) if scores else 0
                 portfolio_data.append({"Company": d.company_name, "Avg Score": avg, "Created": d.created_date.date()})
@@ -400,6 +637,7 @@ if authentication_status:
                 "OpenAI GPT-4o Search",
                 "Google Gemini Search",
                 "xAI Grok Search",
+                "LinkUp API Search",
                 "Manual Entry"
             ))
 
@@ -410,209 +648,88 @@ if authentication_status:
             )
 
             file_urls = []
+            extracted_texts = []
             if uploaded_files:
-                with st.spinner(f"Uploading {len(uploaded_files)} file(s) to {STORAGE_BACKEND.upper()}..."):
+                with st.spinner(f"Uploading and analyzing {len(uploaded_files)} file(s)..."):
                     success_count = 0
                     for file in uploaded_files:
-                        if file.size > 50 * 1024 * 1024:
-                            st.error(f"File {file.name} is too large (>50MB). Skipping.")
+                        if file.size > 200 * 1024 * 1024:
+                            st.error(f"File {file.name} is too large (>200MB). Streamlit limit - try smaller files or compress.")
                             continue
+                        if file.size > 50 * 1024 * 1024:
+                            st.warning(f"File {file.name} is large (>50MB) - upload may be slow.")
                         url, success = upload_file_to_storage(file)
                         if success:
                             file_urls.append({"name": file.name, "url": url})
                             success_count += 1
+                            text = extract_text_from_file(file)
+                            if text.strip():
+                                extracted_texts.append(f"--- {file.name} ---\n{text}")
                         else:
                             file_urls.append({"name": file.name, "url": "Upload failed"})
                     if success_count > 0:
-                        st.success(f"{success_count}/{len(uploaded_files)} files uploaded successfully.")
+                        st.success(f"{success_count}/{len(uploaded_files)} files uploaded.")
+                        st.write("Uploaded file links:")
+                        for f in file_urls:
+                            if f["url"] != "Upload failed":
+                                st.write(f"- {f['name']}: {f['url']}")
+
+                        # Save basic upload info
+                        deal_data = {
+                            "method": "Document Upload",
+                            "documents": file_urls
+                        }
+                        save_analysis("Deal Sourcing", deal_data)
+
+                        # AI Document Analysis
+                        if openai_client and extracted_texts:
+                            combined_text = "\n\n".join(extracted_texts)
+                            if len(combined_text) > 100000:
+                                combined_text = combined_text[:100000] + "\n\n[Text truncated due to length]"
+
+                            with st.spinner("Running AI analysis on uploaded documents..."):
+                                try:
+                                    response = openai_client.chat.completions.create(
+                                        model="gpt-4o",
+                                        messages=[
+                                            {"role": "system", "content": "You are a VC due diligence expert. Analyze the provided pitch deck/financial/legal documents for a startup investment. Extract key highlights: market opportunity, product, traction, financials, team, risks, and competitive advantages. Provide an overall attractiveness score (1-10) with justification. Be concise but insightful."},
+                                            {"role": "user", "content": combined_text}
+                                        ],
+                                        temperature=0.5,
+                                        max_tokens=1500
+                                    )
+                                    ai_summary = response.choices[0].message.content
+
+                                    # Try to extract score
+                                    score_match = re.search(r"(\d+\.?\d*)/10|score.*?(\d+\.?\d*)", ai_summary, re.IGNORECASE)
+                                    score_value = float(score_match.group(1) or score_match.group(2)) * 10 if score_match else None
+
+                                    ai_data = {
+                                        "ai_summary": ai_summary,
+                                        "score": score_value,
+                                        "extracted_text_preview": combined_text[:2000] + "..." if len(combined_text) > 2000 else combined_text
+                                    }
+                                    save_analysis("Document AI Analysis", ai_data)
+
+                                    st.subheader("🤖 AI Document Analysis")
+                                    st.markdown(ai_summary)
+                                    if score_value is not None:
+                                        st.metric("AI Attractiveness Score", f"{score_value:.0f}/100")
+                                    else:
+                                        st.info("No explicit score found in AI analysis.")
+                                except Exception as e:
+                                    st.error(f"AI document analysis failed: {e}")
+                        else:
+                            st.info("OpenAI API key not configured or no extractable text — skipping AI analysis.")
+                            if extracted_texts:
+                                preview = "\n\n".join(extracted_texts)
+                                if len(preview) > 5000:
+                                    preview = preview[:5000] + "\n\n[Preview truncated]"
+                                st.text_area("Extracted Text Preview", preview, height=300)
                     else:
                         st.error("All uploads failed.")
-
-            # Key loading
-            openai_client = None
-            if "OPENAI_API_KEY" in st.secrets and st.secrets.get("OPENAI_API_KEY"):
-                openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-                st.success("OpenAI API key loaded from Streamlit secrets.")
-            elif os.getenv("OPENAI_API_KEY"):
-                openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                st.success("OpenAI API key loaded from environment variable.")
             else:
-                st.warning("OpenAI API key not found. Add it to .streamlit/secrets.toml or set as environment variable to enable GPT analysis.")
-
-            gemini_api_key = None
-            if "GEMINI_API_KEY" in st.secrets and st.secrets.get("GEMINI_API_KEY"):
-                gemini_api_key = st.secrets["GEMINI_API_KEY"]
-                st.success("Google Gemini API key loaded from Streamlit secrets.")
-            elif os.getenv("GEMINI_API_KEY"):
-                gemini_api_key = os.getenv("GEMINI_API_KEY")
-                st.success("Google Gemini API key loaded from environment variable.")
-            else:
-                st.warning("Google Gemini API key not found. Add it to .streamlit/secrets.toml or set as environment variable to enable Gemini search.")
-
-            grok_api_key = None
-            if "GROK_API_KEY" in st.secrets and st.secrets.get("GROK_API_KEY"):
-                grok_api_key = st.secrets["GROK_API_KEY"]
-                st.success("xAI Grok API key loaded from Streamlit secrets.")
-            elif os.getenv("GROK_API_KEY"):
-                grok_api_key = os.getenv("GROK_API_KEY")
-                st.success("xAI Grok API key loaded from environment variable.")
-            else:
-                st.warning("xAI Grok API key not found. Add it to .streamlit/secrets.toml or set as environment variable to enable Grok search.")
-
-            # OAuth Callback Handling
-            query_params = st.query_params
-            code = query_params.get("code")
-
-            if code:
-                st.info("OAuth callback detected. Processing token...")
-                service = st.session_state.get('oauth_service')
-                if service == "linkedin":
-                    client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
-                    client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
-                    redirect_uri = st.secrets.get("LINKEDIN_REDIRECT_URI")
-                    try:
-                        token_url = "https://www.linkedin.com/oauth/v2/accessToken"
-                        token_data = {
-                            "grant_type": "authorization_code",
-                            "code": code,
-                            "redirect_uri": redirect_uri,
-                            "client_id": client_id,
-                            "client_secret": client_secret
-                        }
-                        response = requests.post(token_url, data=token_data)
-                        response.raise_for_status()
-                        token_json = response.json()
-                        access_token = token_json.get("access_token")
-                        expires_in = token_json.get("expires_in", 3600)
-                        refresh_token = token_json.get("refresh_token")
-                        st.session_state['linkedin_token'] = access_token
-                        st.session_state['linkedin_expires'] = time.time() + expires_in
-                        if refresh_token:
-                            st.session_state['linkedin_refresh'] = refresh_token
-                        st.success("LinkedIn token obtained.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"LinkedIn token exchange failed: {e}")
-                elif service == "angellist":
-                    client_id = st.secrets.get("ANGELLIST_CLIENT_ID")
-                    client_secret = st.secrets.get("ANGELLIST_CLIENT_SECRET")
-                    redirect_uri = st.secrets.get("ANGELLIST_REDIRECT_URI")
-                    try:
-                        token_url = "https://angel.co/api/oauth/token"
-                        token_data = {
-                            "grant_type": "authorization_code",
-                            "code": code,
-                            "redirect_uri": redirect_uri,
-                            "client_id": client_id,
-                            "client_secret": client_secret
-                        }
-                        response = requests.post(token_url, data=token_data)
-                        response.raise_for_status()
-                        token_json = response.json()
-                        access_token = token_json.get("access_token")
-                        expires_in = token_json.get("expires_in", 3600)
-                        st.session_state['angellist_token'] = access_token
-                        st.session_state['angellist_expires'] = time.time() + expires_in
-                        st.success("AngelList token obtained.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"AngelList token exchange failed: {e}")
-                elif service == "google":
-                    client_id = st.secrets.get("GOOGLE_CLIENT_ID")
-                    client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-                    redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
-                    try:
-                        token_url = "https://oauth2.googleapis.com/token"
-                        token_data = {
-                            "grant_type": "authorization_code",
-                            "code": code,
-                            "redirect_uri": redirect_uri,
-                            "client_id": client_id,
-                            "client_secret": client_secret
-                        }
-                        response = requests.post(token_url, data=token_data)
-                        response.raise_for_status()
-                        token_json = response.json()
-                        access_token = token_json.get("access_token")
-                        expires_in = token_json.get("expires_in", 3600)
-                        refresh_token = token_json.get("refresh_token")
-                        st.session_state['google_token'] = access_token
-                        st.session_state['google_expires'] = time.time() + expires_in
-                        if refresh_token:
-                            st.session_state['google_refresh'] = refresh_token
-                        st.success("Google token obtained.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Google token exchange failed: {e}")
-
-            # Token Expiry Check Helper
-            def is_token_expired(expires_key):
-                expires = st.session_state.get(expires_key)
-                if expires and time.time() > expires:
-                    return True
-                return False
-
-            # Token Refresh Helper
-            def refresh_token(service):
-                if service == "linkedin":
-                    client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
-                    client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
-                    refresh_token = st.session_state.get('linkedin_refresh')
-                    if not refresh_token:
-                        st.error("No refresh token. Re-authenticate.")
-                        return False
-                    try:
-                        refresh_url = "https://www.linkedin.com/oauth/v2/accessToken"
-                        refresh_data = {
-                            "grant_type": "refresh_token",
-                            "refresh_token": refresh_token,
-                            "client_id": client_id,
-                            "client_secret": client_secret
-                        }
-                        response = requests.post(refresh_url, data=refresh_data)
-                        response.raise_for_status()
-                        token_json = response.json()
-                        new_token = token_json.get("access_token")
-                        new_expires = time.time() + token_json.get("expires_in", 3600)
-                        new_refresh = token_json.get("refresh_token", refresh_token)
-                        st.session_state['linkedin_token'] = new_token
-                        st.session_state['linkedin_expires'] = new_expires
-                        st.session_state['linkedin_refresh'] = new_refresh
-                        st.success("LinkedIn token refreshed.")
-                        return True
-                    except Exception as e:
-                        st.error(f"Refresh failed: {e}")
-                        return False
-                elif service == "angellist":
-                    st.info("AngelList does not support refresh tokens. Re-authenticate.")
-                    return False
-                elif service == "google":
-                    client_id = st.secrets.get("GOOGLE_CLIENT_ID")
-                    client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-                    refresh_token = st.session_state.get('google_refresh')
-                    if not refresh_token:
-                        st.error("No refresh token. Re-authenticate.")
-                        return False
-                    try:
-                        refresh_url = "https://oauth2.googleapis.com/token"
-                        refresh_data = {
-                            "grant_type": "refresh_token",
-                            "refresh_token": refresh_token,
-                            "client_id": client_id,
-                            "client_secret": client_secret
-                        }
-                        response = requests.post(refresh_url, data=refresh_data)
-                        response.raise_for_status()
-                        token_json = response.json()
-                        new_token = token_json.get("access_token")
-                        new_expires = time.time() + token_json.get("expires_in", 3600)
-                        st.session_state['google_token'] = new_token
-                        st.session_state['google_expires'] = new_expires
-                        st.success("Google token refreshed.")
-                        return True
-                    except Exception as e:
-                        st.error(f"Google refresh failed: {e}")
-                        return False
+                st.info("No files uploaded yet.")
 
             if sourcing_method == "Crunchbase Search":
                 st.subheader("Crunchbase Search")
@@ -673,13 +790,13 @@ if authentication_status:
                         st.session_state['oauth_service'] = "angellist"
                         auth_url = f"https://angel.co/api/oauth/authorize?client_id={client_id}&redirect_uri={urllib.parse.quote(redirect_uri)}&response_type=code&scope=read:companies"
                         st.markdown(f"[Click to authorize AngelList]({auth_url})")
-                if is_token_expired('angellist_expires'):
+                if 'angellist_expires' in st.session_state and time.time() > st.session_state['angellist_expires']:
                     st.warning("AngelList token expired. Re-authenticate.")
                 angellist_token = st.session_state.get('angellist_token', st.text_input("AngelList Access Token", type="password"))
                 company_query = st.text_input("Company name or keyword")
                 if st.button("Search AngelList"):
                     if angellist_token and company_query:
-                        if is_token_expired('angellist_expires'):
+                        if 'angellist_expires' in st.session_state and time.time() > st.session_state['angellist_expires']:
                             st.error("Token expired. Re-authenticate.")
                         else:
                             try:
@@ -732,7 +849,7 @@ if authentication_status:
                         st.session_state['oauth_service'] = "linkedin"
                         auth_url = f"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={client_id}&redirect_uri={urllib.parse.quote(redirect_uri)}&scope=r_organization_lookup"
                         st.markdown(f"[Click to authorize LinkedIn]({auth_url})")
-                if is_token_expired('linkedin_expires'):
+                if 'linkedin_expires' in st.session_state and time.time() > st.session_state['linkedin_expires']:
                     st.warning("LinkedIn token expired.")
                     if st.button("Refresh LinkedIn Token"):
                         refresh_token("linkedin")
@@ -740,7 +857,7 @@ if authentication_status:
                 company_vanity = st.text_input("Company Vanity Name or ID (e.g., linkedin)")
                 if st.button("Search LinkedIn"):
                     if linkedin_token and company_vanity:
-                        if is_token_expired('linkedin_expires'):
+                        if 'linkedin_expires' in st.session_state and time.time() > st.session_state['linkedin_expires']:
                             st.error("Token expired. Refresh or re-authenticate.")
                         else:
                             try:
@@ -830,6 +947,7 @@ if authentication_status:
                                 st.error("Google rate limit exceeded. Try again later.")
                             else:
                                 st.error(f"HTTP error: {e.response.status_code}")
+                            st.error(f"HTTP error: {e.response.status_code}")
                         except requests.exceptions.RequestException as e:
                             st.error(f"Network error: {e}")
                         except Exception as e:
@@ -937,6 +1055,89 @@ if authentication_status:
                             st.success("Grok leads saved.")
                         except Exception as e:
                             st.error(f"Grok call failed: {e}")
+
+            elif sourcing_method == "LinkUp API Search":
+                st.subheader("LinkUp API Search")
+                if not linkup_api_key:
+                    st.error("LinkUp API key not configured.")
+                else:
+                    company_name = st.text_input("Company Name to Search on LinkUp")
+                    industry = st.text_input("Industry (optional, comma-separated)")
+                    location = st.text_input("Location (optional, comma-separated)")
+                    employee_range = st.text_input("Employee Range (optional, e.g., 1-50)")
+                    enrich = st.checkbox("Enrich Results (may cost extra)")
+                    max_results = st.number_input("Max Results", min_value=10, max_value=50000, value=50, step=10)
+                    if st.button("Search on LinkUp"):
+                        if not company_name.strip():
+                            st.error("Please enter a company name or keyword.")
+                        else:
+                            with st.spinner("Searching LinkUp... (this may take up to 60 seconds)"):
+                                success = False
+                                for attempt in range(3):
+                                    try:
+                                        url = "https://api.linkupapi.com/v1/data/search/companies"
+                                        headers = {
+                                            "x-api-key": linkup_api_key,
+                                            "Content-Type": "application/json"
+                                        }
+                                        payload = {
+                                            "keyword": company_name.strip(),
+                                            "total_results": max_results,
+                                            "enrich": enrich
+                                        }
+                                        if industry.strip():
+                                            payload["industry"] = [i.strip() for i in industry.split(',')]
+                                        if location.strip():
+                                            payload["location"] = [l.strip() for l in location.split(',')]
+                                        if employee_range.strip():
+                                            payload["employee_range"] = [er.strip() for er in employee_range.split(',')]
+                                        
+                                        response = requests.post(url, headers=headers, json=payload, timeout=60)
+                                        response.raise_for_status()
+                                        data = response.json()
+                                        
+                                        if data.get("status") == "success":
+                                            results = data.get("data", {}).get("companies", [])
+                                            if results:
+                                                df = pd.DataFrame(results)
+                                                st.dataframe(df, use_container_width=True)
+                                                deal_data = {
+                                                    "method": "LinkUp API Search",
+                                                    "query": company_name,
+                                                    "filters": {"industry": industry, "location": location, "employee_range": employee_range, "enrich": enrich},
+                                                    "results": results,
+                                                    "documents": file_urls
+                                                }
+                                                save_analysis("Deal Sourcing", deal_data)
+                                                st.success(f"Found {len(results)} results and saved to deal.")
+                                            else:
+                                                st.info("No results found. Try broadening your search criteria.")
+                                            success = True
+                                            break
+                                        else:
+                                            st.error(f"LinkUp API returned non-success status: {data.get('message', 'Unknown error')}")
+                                            success = True
+                                            break
+                                    
+                                    except requests.exceptions.Timeout:
+                                        st.warning(f"Attempt {attempt + 1}/3 timed out after 60 seconds. Retrying...")
+                                        time.sleep(5)
+                                    except requests.exceptions.HTTPError as e:
+                                        try:
+                                            error_msg = e.response.json().get("message", str(e))
+                                        except:
+                                            error_msg = str(e)
+                                        st.error(f"LinkUp API error: {e.response.status_code} - {error_msg}")
+                                        break
+                                    except requests.exceptions.RequestException as e:
+                                        st.error(f"Network/request error: {str(e)}")
+                                        break
+                                    except Exception as e:
+                                        st.error(f"Unexpected error: {str(e)}")
+                                        break
+                                
+                                if not success:
+                                    st.error("All attempts failed. The LinkUp API may be experiencing issues. Try again later.")
 
             else:
                 st.subheader("Manual Deal Entry")
@@ -1555,7 +1756,7 @@ if authentication_status:
                     save_data = {"share": share, "rank": rank}
                     save_analysis("Market Benchmark", save_data)
                     st.success("Benchmarking saved.")
-                except:
+                except Exception:
                     st.error("Invalid peer ARR input.")
 
         # Sensitivity Analysis
@@ -1693,7 +1894,7 @@ if authentication_status:
                 for a in session_db.query(Analysis).filter_by(deal_id=current_deal.id).all():
                     try:
                         section_data = json.loads(a.data)
-                    except:
+                    except Exception:
                         section_data = {"raw_data": a.data}
                     all_data[a.section] = section_data
                 df = pd.json_normalize(all_data)
