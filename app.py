@@ -5,7 +5,6 @@ import datetime
 import io
 import altair as alt
 import requests
-from fpdf import FPDF
 import json
 import os
 from scipy.optimize import fsolve
@@ -29,6 +28,12 @@ from docx import Document
 from pptx import Presentation
 import PyPDF2
 import re
+
+# ReportLab for PDF generation
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 
 # ================================
 # Storage Backend - S3, GCS, or Local
@@ -531,12 +536,14 @@ if authentication_status:
                                     score_match = re.search(r"(\d+\.?\d*)/10|score.*?(\d+\.?\d*)", ai_summary, re.IGNORECASE)
                                     score_value = float(score_match.group(1) or score_match.group(2)) * 10 if score_match else None
 
-                                    ai_data = {
+                                    # Save the AI document analysis results under "Document AI Analysis"
+                                    ai_doc_data = {
                                         "ai_summary": ai_summary,
                                         "score": score_value,
-                                        "extracted_text_preview": combined_text[:2000] + "..." if len(combined_text) > 2000 else combined_text
+                                        "extracted_text_preview": combined_text[:2000] + "..." if len(combined_text) > 2000 else combined_text,
+                                        "timestamp": datetime.datetime.utcnow().isoformat()
                                     }
-                                    save_analysis("Document AI Analysis", ai_data)
+                                    save_analysis("Document AI Analysis", ai_doc_data)
 
                                     st.subheader("🤖 AI Document Analysis")
                                     st.markdown(ai_summary)
@@ -544,6 +551,7 @@ if authentication_status:
                                         st.metric("AI Attractiveness Score", f"{score_value:.0f}/100")
                                     else:
                                         st.info("No explicit score found in AI analysis.")
+                                    st.success("Document AI analysis saved and will appear in the PDF report.")
                                 except Exception as e:
                                     st.error(f"AI document analysis failed: {e}")
                         else:
@@ -800,20 +808,22 @@ if authentication_status:
                                     {"role": "user", "content": prompt}
                                 ],
                                 temperature=0.7,
-                                max_tokens=2000
+                                max_tokens=3000  # Increased for longer responses
                             )
                             gpt_results = response.choices[0].message.content
                             st.markdown("### GPT-4o Generated Leads")
                             st.markdown(gpt_results)
-                            deal_data = {
-                                "method": "OpenAI GPT-4o Search",
+
+                            # Save AI leads to database
+                            ai_leads_data = {
+                                "model": "GPT-4o",
                                 "query": ai_query,
                                 "num_leads_requested": num_leads,
                                 "results": gpt_results,
-                                "documents": file_urls
+                                "timestamp": datetime.datetime.utcnow().isoformat()
                             }
-                            save_analysis("Deal Sourcing", deal_data)
-                            st.success("GPT-4o leads saved.")
+                            save_analysis("AI Generated Leads", ai_leads_data)
+                            st.success("GPT-4o leads saved and will appear in the PDF report.")
                         except Exception as e:
                             st.error(f"OpenAI call failed: {e}")
 
@@ -842,15 +852,17 @@ if authentication_status:
                             gemini_results = data['candidates'][0]['content']['parts'][0]['text']
                             st.markdown("### Gemini Generated Leads")
                             st.markdown(gemini_results)
-                            deal_data = {
-                                "method": "Google Gemini Search",
+
+                            # Save AI leads to database
+                            ai_leads_data = {
+                                "model": "Gemini 2.5 Flash",
                                 "query": gemini_query,
                                 "num_leads_requested": num_leads,
                                 "results": gemini_results,
-                                "documents": file_urls
+                                "timestamp": datetime.datetime.utcnow().isoformat()
                             }
-                            save_analysis("Deal Sourcing", deal_data)
-                            st.success("Gemini leads saved.")
+                            save_analysis("AI Generated Leads", ai_leads_data)
+                            st.success("Gemini leads saved and will appear in the PDF report.")
                         except requests.exceptions.HTTPError as e:
                             if e.response.status_code == 404:
                                 st.error("Gemini model not found (404). Try 'gemini-2.5-flash' or check your key permissions.")
@@ -888,7 +900,7 @@ if authentication_status:
                                     {"role": "user", "content": prompt}
                                 ],
                                 "temperature": 0.7,
-                                "max_tokens": 2000
+                                "max_tokens": 3000  # Increased for longer responses
                             }
                             response = requests.post(url, headers=headers, json=payload, timeout=60)
                             response.raise_for_status()
@@ -896,15 +908,17 @@ if authentication_status:
                             grok_results = data['choices'][0]['message']['content']
                             st.markdown("### Grok Generated Leads")
                             st.markdown(grok_results)
-                            deal_data = {
-                                "method": "xAI Grok Search",
+
+                            # Save AI leads to database
+                            ai_leads_data = {
+                                "model": "Grok-4",
                                 "query": grok_query,
                                 "num_leads_requested": num_leads,
                                 "results": grok_results,
-                                "documents": file_urls
+                                "timestamp": datetime.datetime.utcnow().isoformat()
                             }
-                            save_analysis("Deal Sourcing", deal_data)
-                            st.success("Grok leads saved.")
+                            save_analysis("AI Generated Leads", ai_leads_data)
+                            st.success("Grok leads saved and will appear in the PDF report.")
                         except requests.exceptions.HTTPError as e:
                             if e.response.status_code == 404:
                                 st.error("Grok API endpoint not found (404). Check your key and model access on x.ai.")
@@ -1731,24 +1745,71 @@ if authentication_status:
                     st.info("Configure OpenAI API key for AI memo generation.")
 
             if st.button("Generate PDF Report"):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(0, 10, f"Due Diligence Report - {current_deal.company_name}", ln=1, align='C')
-                pdf.set_font("Arial", size=12)
-                pdf.ln(10)
-                pdf.cell(0, 10, f"Prepared by: {name} | Date: {datetime.date.today()} | Stage: {current_deal.stage}", ln=1)
-                pdf.ln(10)
-                pdf.cell(0, 10, "Summary of Analyses:", ln=1)
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch, leftMargin=1*inch, rightMargin=1*inch)
+                styles = getSampleStyleSheet()
+                title_style = ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=18, alignment=1, spaceAfter=30)
+                heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, spaceAfter=12)
+                normal_style = styles['Normal']
+                pre_style = ParagraphStyle('Preformatted', parent=styles['Code'], fontSize=9, leading=10)
+
+                story = []
+
+                # Title
+                story.append(Paragraph(f"Due Diligence Report - {current_deal.company_name}", title_style))
+                story.append(Spacer(1, 0.2*inch))
+
+                # Header info
+                story.append(Paragraph(f"Prepared by: {name} | Date: {datetime.date.today()} | Stage: {current_deal.stage}", normal_style))
+                story.append(Spacer(1, 0.5*inch))
+
+                # Summary of Analyses
+                story.append(Paragraph("Summary of Analyses:", heading_style))
                 analyses = session_db.query(Analysis).filter_by(deal_id=current_deal.id).order_by(Analysis.timestamp.desc()).all()
                 for a in analyses:
-                    data = json.loads(a.data) if a.data else {}
-                    score = data.get("score", "N/A")
-                    pdf.cell(0, 10, f"- {a.section} ({a.timestamp.date()}): Score {score}", ln=1)
-                buffer = io.BytesIO()
-                pdf.output(buffer)
+                    try:
+                        data = json.loads(a.data)
+                        score = data.get("score")
+                        if score is not None:
+                            score_str = f"Score {score}/100"
+                        else:
+                            score_str = "N/A"
+                    except:
+                        score_str = "N/A"
+                    story.append(Paragraph(f"• {a.section} ({a.timestamp.date()}): {score_str}", normal_style))
+
+                    # Full preview for Document AI Analysis using Preformatted for better formatting
+                    if a.section == "Document AI Analysis":
+                        try:
+                            data = json.loads(a.data)
+                            ai_summary = data.get("ai_summary", "No summary available")
+                            story.append(Spacer(1, 0.2*inch))
+                            story.append(Paragraph("Document AI Analysis:", heading_style))
+                            story.append(Preformatted(ai_summary, pre_style))
+                            story.append(Spacer(1, 0.3*inch))
+                        except:
+                            pass
+
+                    # Full preview for AI Generated Leads using Preformatted
+                    if a.section == "AI Generated Leads":
+                        try:
+                            data = json.loads(a.data)
+                            results = data.get("results", "No leads available")
+                            story.append(Spacer(1, 0.2*inch))
+                            story.append(Paragraph("AI Generated Leads:", heading_style))
+                            story.append(Preformatted(results, pre_style))
+                            story.append(Spacer(1, 0.3*inch))
+                        except:
+                            pass
+
+                doc.build(story)
                 buffer.seek(0)
-                st.download_button("Download Report", buffer, f"DD_Report_{current_deal.company_name}.pdf", "application/pdf")
+                st.download_button(
+                    label="Download Report",
+                    data=buffer,
+                    file_name=f"DD_Report_{current_deal.company_name.replace(' ', '_')}.pdf",
+                    mime="application/pdf"
+                )
 
             if st.button("Export All Deal Data to Excel"):
                 all_data = {}
