@@ -3,7 +3,7 @@ pandas==2.3.0              # <-- Changed to 2.1.4 (stable on Python 3.12/3.13)
 numpy==1.26.4
 altair==5.2.0
 requests==2.31.0
-fpdf2==2.7.9
+reportlab==4.0.9
 streamlit-authenticator==0.3.2
 SQLAlchemy==2.0.35
 openai==1.55.3
