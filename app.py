@@ -815,7 +815,8 @@ if authentication_status:
                     gemini_query = st.text_area("Describe the type of startup or market you're researching", value="Fast-growing fintech startups in Southeast Asia with recent funding")
                     if st.button("Generate Leads with Gemini"):
                         try:
-                            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_api_key}"
+                            # Updated to current stable model (Dec 2025)
+                            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
                             payload = {
                                 "contents": [{
                                     "parts": [{
@@ -837,6 +838,15 @@ if authentication_status:
                             }
                             save_analysis("Deal Sourcing", deal_data)
                             st.success("Gemini leads saved.")
+                        except requests.exceptions.HTTPError as e:
+                            if e.response.status_code == 404:
+                                st.error("Gemini model not found (404). The model 'gemini-1.5-flash' is retired. Updated to 'gemini-2.5-flash' — if still failing, check your API key has access to latest models.")
+                            elif e.response.status_code == 401:
+                                st.error("Unauthorized (401). Invalid or restricted Gemini API key.")
+                            else:
+                                st.error(f"Gemini API error: {e.response.status_code} - {e.response.text}")
+                        except requests.exceptions.Timeout:
+                            st.error("Gemini request timed out. Try again.")
                         except Exception as e:
                             st.error(f"Gemini call failed: {e}")
 
@@ -854,7 +864,7 @@ if authentication_status:
                                 "Content-Type": "application/json"
                             }
                             payload = {
-                                "model": "grok-beta",
+                                "model": "grok-4",  # Updated to current model as of Dec 2025
                                 "messages": [
                                     {"role": "system", "content": "You are a VC deal sourcing expert."},
                                     {"role": "user", "content": grok_query}
@@ -862,7 +872,7 @@ if authentication_status:
                                 "temperature": 0.7,
                                 "max_tokens": 1500
                             }
-                            response = requests.post(url, headers=headers, json=payload)
+                            response = requests.post(url, headers=headers, json=payload, timeout=60)
                             response.raise_for_status()
                             data = response.json()
                             grok_results = data['choices'][0]['message']['content']
@@ -876,6 +886,15 @@ if authentication_status:
                             }
                             save_analysis("Deal Sourcing", deal_data)
                             st.success("Grok leads saved.")
+                        except requests.exceptions.HTTPError as e:
+                            if e.response.status_code == 404:
+                                st.error("Grok API endpoint not found (404). Possible causes: Invalid API key, no access to chat endpoint, or model not available. Check your xAI console and try model 'grok-4' or 'grok-3'.")
+                            elif e.response.status_code == 401:
+                                st.error("Unauthorized (401). Your Grok API key is invalid or lacks chat access.")
+                            else:
+                                st.error(f"Grok API error: {e.response.status_code} - {e.response.text}")
+                        except requests.exceptions.Timeout:
+                            st.error("Grok request timed out. Try again later.")
                         except Exception as e:
                             st.error(f"Grok call failed: {e}")
 
