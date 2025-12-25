@@ -21,6 +21,8 @@ import uuid
 import urllib.parse
 import time
 from openai import OpenAI
+import yaml
+from yaml import SafeLoader
 
 # Text extraction libraries
 from docx import Document
@@ -188,35 +190,22 @@ class Analysis(Base):
 Base.metadata.create_all(engine)
 
 # ================================
-# Authentication
+# Authentication - Using config.yaml (Recommended)
 # ================================
-auth_config = {
-    "credentials": {
-        "usernames": {
-            "admin": {
-                "email": "admin@example.com",
-                "name": "Admin User",
-                "password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-            },
-            "analyst": {
-                "email": "analyst@example.com",
-                "name": "Analyst User",
-                "password": "$2b$12$KIXp1pa8kT2P/QN1jJ1QBu6s9K2fY0jN3VqO/0oV5P2X4zX1X6X2"
-            }
-        }
-    },
-    "cookie": {
-        "expiry_days": 30,
-        "key": "vc_portal_random_key",
-        "name": "vc_portal_cookie"
-    }
-}
+
+# Load authentication config from YAML
+try:
+    with open('config.yaml') as file:
+        config = yaml.load(file, Loader=SafeLoader)
+except FileNotFoundError:
+    st.error("config.yaml not found. Please create it with your credentials and cookie settings.")
+    st.stop()
 
 authenticator = Authenticate(
-    auth_config["credentials"],
-    auth_config["cookie"]["name"],
-    auth_config["cookie"]["key"],
-    auth_config["cookie"]["expiry_days"]
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
 )
 
 authenticator.login(location="main")
@@ -318,161 +307,6 @@ if authentication_status:
         st.sidebar.success("LinkUp API key loaded from environment variable.")
     else:
         st.sidebar.warning("LinkUp API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
-
-    # Token Expiry Check Helper
-    def is_token_expired(expires_key):
-        expires = st.session_state.get(expires_key)
-        if expires and time.time() > expires:
-            return True
-        return False
-
-    # Token Refresh Helper
-    def refresh_token(service):
-        if service == "linkedin":
-            client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
-            client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
-            refresh_token = st.session_state.get('linkedin_refresh')
-            if not refresh_token:
-                st.error("No refresh token. Re-authenticate.")
-                return False
-            try:
-                refresh_url = "https://www.linkedin.com/oauth/v2/accessToken"
-                refresh_data = {
-                    "grant_type": "refresh_token",
-                    "refresh_token": refresh_token,
-                    "client_id": client_id,
-                    "client_secret": client_secret
-                }
-                response = requests.post(refresh_url, data=refresh_data)
-                response.raise_for_status()
-                token_json = response.json()
-                new_token = token_json.get("access_token")
-                new_expires = time.time() + token_json.get("expires_in", 3600)
-                new_refresh = token_json.get("refresh_token", refresh_token)
-                st.session_state['linkedin_token'] = new_token
-                st.session_state['linkedin_expires'] = new_expires
-                st.session_state['linkedin_refresh'] = new_refresh
-                st.success("LinkedIn token refreshed.")
-                return True
-            except Exception as e:
-                st.error(f"Refresh failed: {e}")
-                return False
-        elif service == "angellist":
-            st.info("AngelList does not support refresh tokens. Re-authenticate.")
-            return False
-        elif service == "google":
-            client_id = st.secrets.get("GOOGLE_CLIENT_ID")
-            client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-            refresh_token = st.session_state.get('google_refresh')
-            if not refresh_token:
-                st.error("No refresh token. Re-authenticate.")
-                return False
-            try:
-                refresh_url = "https://oauth2.googleapis.com/token"
-                refresh_data = {
-                    "grant_type": "refresh_token",
-                    "refresh_token": refresh_token,
-                    "client_id": client_id,
-                    "client_secret": client_secret
-                }
-                response = requests.post(refresh_url, data=refresh_data)
-                response.raise_for_status()
-                token_json = response.json()
-                new_token = token_json.get("access_token")
-                new_expires = time.time() + token_json.get("expires_in", 3600)
-                st.session_state['google_token'] = new_token
-                st.session_state['google_expires'] = new_expires
-                st.success("Google token refreshed.")
-                return True
-            except Exception as e:
-                st.error(f"Google refresh failed: {e}")
-                return False
-
-    # OAuth Callback Handling
-    query_params = st.query_params
-    code = query_params.get("code")
-
-    if code:
-        st.info("OAuth callback detected. Processing token...")
-        service = st.session_state.get('oauth_service')
-        if service == "linkedin":
-            client_id = st.secrets.get("LINKEDIN_CLIENT_ID")
-            client_secret = st.secrets.get("LINKEDIN_CLIENT_SECRET")
-            redirect_uri = st.secrets.get("LINKEDIN_REDIRECT_URI")
-            try:
-                token_url = "https://www.linkedin.com/oauth/v2/accessToken"
-                token_data = {
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "redirect_uri": redirect_uri,
-                    "client_id": client_id,
-                    "client_secret": client_secret
-                }
-                response = requests.post(token_url, data=token_data)
-                response.raise_for_status()
-                token_json = response.json()
-                access_token = token_json.get("access_token")
-                expires_in = token_json.get("expires_in", 3600)
-                refresh_token = token_json.get("refresh_token")
-                st.session_state['linkedin_token'] = access_token
-                st.session_state['linkedin_expires'] = time.time() + expires_in
-                if refresh_token:
-                    st.session_state['linkedin_refresh'] = refresh_token
-                st.success("LinkedIn token obtained.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"LinkedIn token exchange failed: {e}")
-        elif service == "angellist":
-            client_id = st.secrets.get("ANGELLIST_CLIENT_ID")
-            client_secret = st.secrets.get("ANGELLIST_CLIENT_SECRET")
-            redirect_uri = st.secrets.get("ANGELLIST_REDIRECT_URI")
-            try:
-                token_url = "https://angel.co/api/oauth/token"
-                token_data = {
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "redirect_uri": redirect_uri,
-                    "client_id": client_id,
-                    "client_secret": client_secret
-                }
-                response = requests.post(token_url, data=token_data)
-                response.raise_for_status()
-                token_json = response.json()
-                access_token = token_json.get("access_token")
-                expires_in = token_json.get("expires_in", 3600)
-                st.session_state['angellist_token'] = access_token
-                st.session_state['angellist_expires'] = time.time() + expires_in
-                st.success("AngelList token obtained.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"AngelList token exchange failed: {e}")
-        elif service == "google":
-            client_id = st.secrets.get("GOOGLE_CLIENT_ID")
-            client_secret = st.secrets.get("GOOGLE_CLIENT_SECRET")
-            redirect_uri = st.secrets.get("GOOGLE_REDIRECT_URI")
-            try:
-                token_url = "https://oauth2.googleapis.com/token"
-                token_data = {
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "redirect_uri": redirect_uri,
-                    "client_id": client_id,
-                    "client_secret": client_secret
-                }
-                response = requests.post(token_url, data=token_data)
-                response.raise_for_status()
-                token_json = response.json()
-                access_token = token_json.get("access_token")
-                expires_in = token_json.get("expires_in", 3600)
-                refresh_token = token_json.get("refresh_token")
-                st.session_state['google_token'] = access_token
-                st.session_state['google_expires'] = time.time() + expires_in
-                if refresh_token:
-                    st.session_state['google_refresh'] = refresh_token
-                st.success("Google token obtained.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Google token exchange failed: {e}")
 
     # Generic save function
     def save_analysis(section, save_data):
