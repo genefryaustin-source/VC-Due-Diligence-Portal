@@ -264,49 +264,38 @@ if authentication_status:
         if current_deal:
             st.sidebar.success(f"Active Deal: **{current_deal.company_name}** ({current_deal.stage})")
 
-    # OpenAI Client
-    openai_client = None
-    if "OPENAI_API_KEY" in st.secrets and st.secrets.get("OPENAI_API_KEY"):
-        openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    # ================================
+    # API Keys - ONLY from Streamlit Cloud Dashboard Secrets
+    # ================================
+
+    openai_api_key = st.secrets.get("OPENAI_API_KEY")
+    if openai_api_key:
+        openai_client = OpenAI(api_key=openai_api_key)
         st.sidebar.success("OpenAI API key loaded from Streamlit secrets.")
-    elif os.getenv("OPENAI_API_KEY"):
-        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        st.sidebar.success("OpenAI API key loaded from environment variable.")
     else:
-        st.sidebar.warning("OpenAI API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+        openai_client = None
+        st.sidebar.warning("OpenAI API key not found in Streamlit secrets.")
 
-    # Gemini API Key
-    gemini_api_key = None
-    if "GEMINI_API_KEY" in st.secrets and st.secrets.get("GEMINI_API_KEY"):
-        gemini_api_key = st.secrets["GEMINI_API_KEY"]
+    gemini_api_key = st.secrets.get("GEMINI_API_KEY")
+    if gemini_api_key:
         st.sidebar.success("Google Gemini API key loaded from Streamlit secrets.")
-    elif os.getenv("GEMINI_API_KEY"):
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        st.sidebar.success("Google Gemini API key loaded from environment variable.")
     else:
-        st.sidebar.warning("Google Gemini API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+        gemini_api_key = None
+        st.sidebar.warning("Google Gemini API key not found in Streamlit secrets.")
 
-    # Grok (xAI) API Key
-    grok_api_key = None
-    if "GROK_API_KEY" in st.secrets and st.secrets.get("GROK_API_KEY"):
-        grok_api_key = st.secrets["GROK_API_KEY"]
+    grok_api_key = st.secrets.get("GROK_API_KEY")
+    if grok_api_key:
         st.sidebar.success("xAI Grok API key loaded from Streamlit secrets.")
-    elif os.getenv("GROK_API_KEY"):
-        grok_api_key = os.getenv("GROK_API_KEY")
-        st.sidebar.success("xAI Grok API key loaded from environment variable.")
     else:
-        st.sidebar.warning("xAI Grok API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+        grok_api_key = None
+        st.sidebar.warning("xAI Grok API key not found in Streamlit secrets.")
 
-    # LinkUp API Key
-    linkup_api_key = None
-    if "LINKUP_API_KEY" in st.secrets and st.secrets.get("LINKUP_API_KEY"):
-        linkup_api_key = st.secrets["LINKUP_API_KEY"]
+    linkup_api_key = st.secrets.get("LINKUP_API_KEY")
+    if linkup_api_key:
         st.sidebar.success("LinkUp API key loaded from Streamlit secrets.")
-    elif os.getenv("LINKUP_API_KEY"):
-        linkup_api_key = os.getenv("LINKUP_API_KEY")
-        st.sidebar.success("LinkUp API key loaded from environment variable.")
     else:
-        st.sidebar.warning("LinkUp API key not found. Add it to .streamlit/secrets.toml or set as environment variable.")
+        linkup_api_key = None
+        st.sidebar.warning("LinkUp API key not found in Streamlit secrets.")
 
     # Generic save function
     def save_analysis(section, save_data):
