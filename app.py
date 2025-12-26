@@ -687,7 +687,8 @@ if authentication_status:
                 if 'linkedin_expires' in st.session_state and time.time() > st.session_state['linkedin_expires']:
                     st.warning("LinkedIn token expired.")
                     if st.button("Refresh LinkedIn Token"):
-                        refresh_token("linkedin")
+                        # Placeholder for refresh_token function - implement as needed
+                        st.info("Refresh token functionality not implemented yet.")
                 linkedin_token = st.session_state.get('linkedin_token', st.text_input("LinkedIn Access Token", type="password"))
                 company_vanity = st.text_input("Company Vanity Name or ID (e.g., linkedin)")
                 if st.button("Search LinkedIn"):
@@ -808,13 +809,12 @@ if authentication_status:
                                     {"role": "user", "content": prompt}
                                 ],
                                 temperature=0.7,
-                                max_tokens=3000  # Increased for longer responses
+                                max_tokens=3000
                             )
                             gpt_results = response.choices[0].message.content
                             st.markdown("### GPT-4o Generated Leads")
                             st.markdown(gpt_results)
 
-                            # Save AI leads to database
                             ai_leads_data = {
                                 "model": "GPT-4o",
                                 "query": ai_query,
@@ -853,7 +853,6 @@ if authentication_status:
                             st.markdown("### Gemini Generated Leads")
                             st.markdown(gemini_results)
 
-                            # Save AI leads to database
                             ai_leads_data = {
                                 "model": "Gemini 2.5 Flash",
                                 "query": gemini_query,
@@ -900,7 +899,7 @@ if authentication_status:
                                     {"role": "user", "content": prompt}
                                 ],
                                 "temperature": 0.7,
-                                "max_tokens": 3000  # Increased for longer responses
+                                "max_tokens": 3000
                             }
                             response = requests.post(url, headers=headers, json=payload, timeout=60)
                             response.raise_for_status()
@@ -909,7 +908,6 @@ if authentication_status:
                             st.markdown("### Grok Generated Leads")
                             st.markdown(grok_results)
 
-                            # Save AI leads to database
                             ai_leads_data = {
                                 "model": "Grok-4",
                                 "query": grok_query,
@@ -1619,104 +1617,168 @@ if authentication_status:
         elif sidebar_selection == "Market & Competitor Benchmarking":
             st.header("📊 Market & Competitor Benchmarking")
             st.markdown(f"**Deal:** {current_deal.company_name}")
-            your_arr = st.number_input("Your ARR ($M)", value=6.0)
-            peer_arrs = st.text_input("Peer ARRs ($M, comma-separated)", value="10,15,8,20")
-            if st.button("Analyze"):
+
+            # Industry-specific metric selection
+            industry = st.selectbox("Select Industry", [
+                "SaaS / Software",
+                "FinTech",
+                "HealthTech / MedTech",
+                "E-Commerce",
+                "Marketplace (Two-sided)",
+                "Gaming",
+                "Hardware / IoT",
+                "Biotech / Life Sciences",
+                "CleanTech / ClimateTech",
+                "EdTech",
+                "PropTech / Real Estate",
+                "FoodTech / AgTech",
+                "Mobility / Transportation",
+                "Cybersecurity",
+                "AI / ML Infrastructure",
+                "Web3 / Crypto",
+                "Enterprise Software",
+                "Consumer Social",
+                "Precious Metals Mining and Rare Earth Minerals",
+                "Aerospace / SpaceTech",
+                "Robotics / Automation",
+                "Entertainment / Media",
+                "Logistics / Supply Chain",
+                "Telecom / 5G",
+                "Semiconductors",
+                "Retail / Consumer Goods",
+                "InsuranceTech",
+                "LegalTech",
+                "Energy / Oil & Gas",
+                "Manufacturing",
+                "Pharmaceuticals",
+                "Hospitality / Tourism",
+                "Automotive / EV",
+                "Construction / Building Tech",
+                "Aviation / Drones",
+                "Fashion / Apparel",
+                "SportsTech",
+                "HRTech / Talent",
+                "Other"
+            ])
+
+            if industry == "Other":
+                industry = st.text_input("Specify Industry")
+
+            # Comprehensive metric definitions by industry
+            metric_options = {
+                "SaaS / Software": ["ARR ($M)", "MRR Growth Rate (%)", "LTV/CAC Ratio", "Net Dollar Retention (%)", "Magic Number", "Rule of 40 Score", "Gross Margin (%)", "Burn Multiple"],
+                "FinTech": ["GMV ($M)", "Take Rate (%)", "TPV ($M)", "Active Users (M)", "Revenue ($M)", "AUM ($B)", "Loans Originated ($M)", "Default Rate (%)"],
+                "HealthTech / MedTech": ["Revenue ($M)", "Patients Served (K)", "Clinics/Hospitals Served", "ARR ($M)", "Lives Covered (M)", "Clinical Trial Phase", "FDA Approvals"],
+                "E-Commerce": ["GMV ($M)", "Revenue ($M)", "AOV ($)", "Active Buyers (M)", "Take Rate (%)", "Repeat Purchase Rate (%)", "Inventory Turnover"],
+                "Marketplace (Two-sided)": ["GMV ($M)", "Take Rate (%)", "Active Sellers (K)", "Active Buyers (M)", "Liquidity Ratio", "Supply/Demand Balance"],
+                "Gaming": ["MAU (M)", "DAU (M)", "ARPU ($)", "Revenue ($M)", "Downloads (M)", "Paying Users (%)", "Retention D30 (%)"],
+                "Hardware / IoT": ["Units Sold (K)", "Revenue ($M)", "ASP ($)", "Manufacturing Capacity (units/month)", "Return Rate (%)"],
+                "Biotech / Life Sciences": ["Cash Runway (months)", "Clinical Trial Phase", "Pipeline Value ($B)", "Partnerships", "Patent Portfolio"],
+                "CleanTech / ClimateTech": ["MW Capacity", "Revenue ($M)", "Carbon Offset (tons)", "Projects Deployed", "Energy Generated (GWh)"],
+                "EdTech": ["Active Users (M)", "Revenue ($M)", "ARR ($M)", "Course Completions", "Institutions Served", "Student Outcomes Improvement (%)"],
+                "PropTech / Real Estate": ["Properties Listed", "GMV ($B)", "Revenue ($M)", "Active Agents", "Transaction Volume"],
+                "FoodTech / AgTech": ["Revenue ($M)", "Farmers Served", "Acres Under Management", "Yield Improvement (%)", "Distribution Partners"],
+                "Mobility / Transportation": ["Rides/Bookings (M)", "Revenue ($M)", "Vehicles in Fleet", "Utilization Rate (%)", "Cities Served"],
+                "Cybersecurity": ["ARR ($M)", "Customers", "Revenue ($M)", "Threats Blocked (B)", "Enterprise Customers (%)"],
+                "AI / ML Infrastructure": ["Compute Hours Sold", "Revenue ($M)", "GPU Utilization (%)", "Customers", "Model Training Jobs"],
+                "Web3 / Crypto": ["TVL ($M)", "Active Wallets", "Transaction Volume ($M)", "Daily Active Users", "Protocol Revenue ($M)"],
+                "Enterprise Software": ["ARR ($M)", "ACV ($K)", "Enterprise Customers", "Net Dollar Retention (%)", "Implementation Time (months)"],
+                "Consumer Social": ["MAU (M)", "DAU/MAU Ratio", "Revenue ($M)", "ARPU ($)", "Content Creators"],
+                "Precious Metals Mining and Rare Earth Minerals": ["Annual Production (tons)", "Revenue ($M)", "Reserves (tons)", "Extraction Cost per Ton ($)", "Market Cap ($B)", "Exploration Projects", "Ore Grade (%)", "Mine Life (years)"],
+                "Aerospace / SpaceTech": ["Revenue ($M)", "Launches per Year", "Satellites Deployed", "Contracts Value ($B)", "R&D Spend ($M)", "Payload Capacity (kg)", "Mission Success Rate (%)"],
+                "Robotics / Automation": ["Units Sold (K)", "Revenue ($M)", "Automation Efficiency Gain (%)", "Customers Served", "Patents Filed", "MTBF (hours)", "ROI Period (months)"],
+                "Entertainment / Media": ["Monthly Active Users (M)", "Revenue ($M)", "Content Hours Produced", "Subscriber Growth Rate (%)", "ARPU ($)", "Engagement Time (hours/user)", "Viewership Share (%)"],
+                "Logistics / Supply Chain": ["Revenue ($M)", "Shipments Handled (M)", "On-Time Delivery Rate (%)", "Warehouse Capacity (sq ft)", "Fleet Size", "Cost per Shipment ($)", "Inventory Accuracy (%)"],
+                "Telecom / 5G": ["Revenue ($M)", "Subscribers (M)", "ARPU ($)", "Network Coverage (%)", "Data Speed (Mbps)", "Churn Rate (%)", "5G Penetration (%)"],
+                "Semiconductors": ["Revenue ($M)", "Wafer Production (K/month)", "Yield Rate (%)", "R&D Spend ($M)", "Market Cap ($B)", "Chip Performance (GHz)"],
+                "Retail / Consumer Goods": ["Revenue ($M)", "Stores Operated", "Online Sales Share (%)", "Inventory Turnover", "Customer Loyalty Rate (%)", "Brand Value ($B)"],
+                "InsuranceTech": ["Gross Written Premium ($M)", "Combined Ratio (%)", "Policyholders (M)", "Claims Payout Ratio (%)", "Customer Acquisition Cost ($)", "Retention Rate (%)"],
+                "LegalTech": ["ARR ($M)", "Active Users (K)", "Case Management Efficiency (%)", "Clients Served", "Regulatory Compliance Rate (%)", "AI Accuracy (%)"],
+                "Energy / Oil & Gas": ["Barrels per Day (K)", "Revenue ($B)", "Reserves (B barrels)", "Extraction Cost per Barrel ($)", "Refining Capacity (K bpd)", "Exploration Success Rate (%)", "Carbon Intensity (tons CO2 per barrel)"],
+                "Manufacturing": ["Revenue ($M)", "Production Capacity (units/year)", "Utilization Rate (%)", "Supply Chain Efficiency (%)", "Defect Rate (%)", "R&D Spend ($M)"],
+                "Pharmaceuticals": ["Revenue ($B)", "Drugs in Pipeline", "FDA Approvals (annual)", "Patent Expirations", "R&D Spend ($B)", "Market Share (%)"],
+                "Hospitality / Tourism": ["Revenue ($M)", "Occupancy Rate (%)", "RevPAR ($)", "Properties Managed", "Customer Satisfaction Score", "Repeat Visitors (%)"],
+                "Automotive / EV": ["Vehicles Produced (K)", "Revenue ($B)", "Market Share (%)", "Battery Range (km)", "Charging Stations Installed", "Autonomous Driving Level", "R&D Spend ($B)"],
+                "Construction / Building Tech": ["Revenue ($M)", "Projects Completed", "Contract Value ($B)", "Safety Incident Rate", "Sustainability Rating", "Digital Adoption (%)"],
+                "Aviation / Drones": ["Revenue ($M)", "Flights Operated (K)", "Fleet Size", "On-Time Performance (%)", "Fuel Efficiency (mpg)", "Drone Deliveries (K)"],
+                "Fashion / Apparel": ["Revenue ($M)", "SKUs Managed", "Sales Channels", "Return Rate (%)", "Sustainability Score", "Brand Awareness (%)"],
+                "SportsTech": ["Revenue ($M)", "Users (M)", "Events Managed", "Athlete Performance Improvement (%)", "Fan Engagement Rate"],
+                "HRTech / Talent": ["ARR ($M)", "Clients Served", "Talent Placed (K)", "Retention Rate (%)", "AI Matching Accuracy (%)"],
+                "Other": ["Revenue ($M)", "Active Users (M)", "Other Custom Metric"]
+            }
+
+            selected_metrics = metric_options.get(industry, ["Revenue ($M)", "Active Users (M)", "Other Custom Metric"])
+
+            metric = st.selectbox("Primary Benchmark Metric", selected_metrics)
+
+            if metric == "Other Custom Metric":
+                metric = st.text_input("Custom Metric Name (e.g., Active Users, GMV, etc.)")
+
+            your_value = st.number_input(f"Your Company's {metric}", min_value=0.0, value=10.0)
+
+            peer_values_str = st.text_area(f"Peer Companies' {metric} (one per line or comma-separated)", value="15\n22\n8\n30\n12")
+
+            if st.button("Calculate Benchmark"):
                 try:
-                    peers = [float(x) for x in peer_arrs.split(',')]
-                    rank = sum(your_arr > p for p in peers) + 1
-                    share = your_arr / (your_arr + sum(peers)) * 100
-                    st.metric("Estimated Market Share", f"{share:.1f}%")
-                    st.metric("Peer Rank", f"#{rank}")
-                    save_data = {"share": share, "rank": rank}
-                    save_analysis("Market Benchmark", save_data)
-                    st.success("Benchmarking saved.")
-                except Exception:
-                    st.error("Invalid peer ARR input.")
+                    # Parse peer values
+                    peer_values = []
+                    for line in peer_values_str.split('\n'):
+                        for val in line.split(','):
+                            val = val.strip()
+                            if val:
+                                peer_values.append(float(val))
 
-        # Sensitivity Analysis
-        elif sidebar_selection == "Sensitivity Analysis":
-            st.header("📉 Sensitivity Analysis")
-            st.markdown(f"**Deal:** {current_deal.company_name}")
-            fcff_list = [-450, -250, 100, 900, 1925]
-            results = []
-            for r in np.linspace(0.25, 0.50, 11):
-                for g in np.linspace(0.01, 0.06, 6):
-                    if r <= g: continue
-                    pv_explicit = sum(fcff_list[i] / (1 + r)**(i+1) for i in range(5))
-                    tv = fcff_list[4] * (1 + g) / (r - g)
-                    pv_tv = tv / (1 + r)**5
-                    ev = pv_explicit + pv_tv
-                    results.append([f"{r*100:.0f}%", f"{g*100:.0f}%", round(ev)])
-            df = pd.DataFrame(results, columns=["Discount Rate", "Terminal Growth", "EV ($k)"])
-            pivot = df.pivot(index="Discount Rate", columns="Terminal Growth", values="EV ($k)")
-            st.dataframe(pivot.style.background_gradient())
-            save_data = pivot.to_dict()
-            save_analysis("Sensitivity", save_data)
-            st.success("Sensitivity analysis saved.")
+                    if not peer_values:
+                        st.error("Please enter at least one peer value.")
+                    else:
+                        # Calculations
+                        rank = sum(your_value > p for p in peer_values) + 1
+                        total_peers = len(peer_values) + 1
+                        percentile = (rank / total_peers) * 100
 
-        # Monte Carlo Simulation
-        elif sidebar_selection == "Monte Carlo Simulation":
-            st.header("🎲 Monte Carlo Simulation")
-            st.markdown(f"**Deal:** {current_deal.company_name}")
-            simulations = st.number_input("Number of Simulations", 1000, 10000, 5000)
-            mean_discount = st.slider("Mean Discount Rate (%)", 25.0, 50.0, 35.0) / 100
-            std_discount = st.slider("Std Dev Discount (%)", 1.0, 15.0, 5.0) / 100
-            mean_growth = st.slider("Mean Terminal Growth (%)", 0.0, 8.0, 3.0) / 100
-            std_growth = st.slider("Std Dev Growth (%)", 0.5, 5.0, 1.5) / 100
-            if st.button("Run Simulation"):
-                evs = []
-                fcff_list = [-450, -250, 100, 900, 1925]
-                for _ in range(int(simulations)):
-                    r = np.random.normal(mean_discount, std_discount)
-                    g = np.random.normal(mean_growth, std_growth)
-                    if r <= g or r < 0.1: continue
-                    pv_explicit = sum(fcff_list[i] / (1 + r)**(i+1) for i in range(5))
-                    tv = fcff_list[4] * (1 + g) / (r - g)
-                    pv_tv = tv / (1 + r)**5
-                    evs.append(pv_explicit + pv_tv)
-                if evs:
-                    mean_ev = np.mean(evs)
-                    p10 = np.percentile(evs, 10)
-                    p90 = np.percentile(evs, 90)
-                    st.metric("Mean EV", f"${mean_ev:,.0f}k")
-                    st.metric("P10 / P90", f"${p10:,.0f}k / ${p90:,.0f}k")
-                    chart = alt.Chart(pd.DataFrame({"EV": evs})).mark_bar().encode(alt.X("EV", bin=True), y='count()')
-                    st.altair_chart(chart, use_container_width=True)
-                    save_data = {"mean_ev": mean_ev, "p10": p10, "p90": p90}
-                    save_analysis("Monte Carlo", save_data)
-                    st.success("Monte Carlo simulation saved.")
+                        # Market share for revenue-like metrics
+                        share_metrics = ["ARR", "Revenue", "GMV", "TPV", "AUM", "TVL", "Transaction Volume", "Gross Written Premium", "Barrels per Day", "Vehicles Produced"]
+                        is_share_metric = any(sm in metric for sm in share_metrics)
+                        if is_share_metric:
+                            total_market = your_value + sum(peer_values)
+                            share = (your_value / total_market) * 100 if total_market > 0 else 0
+                        else:
+                            share = None
 
-        # Scenario Planning
-        elif sidebar_selection == "Scenario Planning":
-            st.header("🔮 Scenario Planning")
-            st.markdown(f"**Deal:** {current_deal.company_name}")
-            scenarios = ["Base Case", "Optimistic", "Pessimistic"]
-            scenario_inputs = {}
-            for scenario in scenarios:
-                with st.expander(f"{scenario} Assumptions"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        scenario_inputs[scenario] = {}
-                        scenario_inputs[scenario]["mrr"] = st.number_input(f"Starting MRR {scenario}", value=10000 if "Base" in scenario else 15000 if "Optimistic" in scenario else 5000, key=f"mrr_{scenario}")
-                        scenario_inputs[scenario]["growth"] = st.slider(f"Growth % {scenario}", 5.0, 30.0, 15.0 if "Base" in scenario else 25.0 if "Optimistic" in scenario else 5.0, key=f"growth_{scenario}") / 100
-                    with col2:
-                        scenario_inputs[scenario]["churn"] = st.slider(f"Churn % {scenario}", 1.0, 10.0, 4.0 if "Base" in scenario else 2.0 if "Optimistic" in scenario else 8.0, key=f"churn_{scenario}") / 100
-            if st.button("Generate Scenarios"):
-                months = 36
-                scenario_dfs = {}
-                for scenario in scenarios:
-                    mrr = [scenario_inputs[scenario]["mrr"]]
-                    for _ in range(months - 1):
-                        mrr.append(mrr[-1] * (1 + scenario_inputs[scenario]["growth"]) * (1 - scenario_inputs[scenario]["churn"]))
-                    df = pd.DataFrame({"Month": range(1, months+1), "MRR": mrr, "Scenario": scenario})
-                    scenario_dfs[scenario] = df
-                combined = pd.concat(scenario_dfs.values())
-                chart = alt.Chart(combined).mark_line().encode(x='Month', y='MRR', color='Scenario')
-                st.altair_chart(chart, use_container_width=True)
-                save_data = {s: scenario_dfs[s].to_dict() for s in scenarios}
-                save_analysis("Scenario Planning", save_data)
-                st.success("Scenario planning saved.")
+                        st.subheader("Benchmark Results")
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Your Rank", f"#{rank} of {total_peers}")
+                        col2.metric("Percentile", f"{percentile:.1f}th")
+                        if share is not None:
+                            col3.metric("Estimated Market Share", f"{share:.1f}%")
+
+                        # Save results
+                        benchmark_data = {
+                            "industry": industry,
+                            "metric": metric,
+                            "your_value": your_value,
+                            "peer_values": peer_values,
+                            "rank": rank,
+                            "percentile": percentile,
+                            "market_share": share if share is not None else "N/A",
+                            "timestamp": datetime.datetime.utcnow().isoformat()
+                        }
+                        save_analysis("Market Benchmark", benchmark_data)
+                        st.success("Benchmark saved and will appear in the PDF report.")
+                except ValueError:
+                    st.error("Invalid peer values. Please enter numbers only.")
+
+            if openai_client and st.button("Suggest Industry Peers & Metrics"):
+                prompt = f"Suggest 8-12 real peer companies for a startup in the {industry} industry similar to {current_deal.company_name}. For each, estimate their {metric} value and provide a brief rationale. Use current 2025 data if possible."
+                try:
+                    response = openai_client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": "You are a VC market research expert with up-to-date knowledge."}, {"role": "user", "content": prompt}]
+                    )
+                    st.markdown("### AI Peer & Metric Suggestions")
+                    st.markdown(response.choices[0].message.content)
+                except Exception as e:
+                    st.error(f"AI suggestions failed: {e}")
 
         # Generate Report
         elif sidebar_selection == "Generate Report":
@@ -1778,7 +1840,7 @@ if authentication_status:
                         score_str = "N/A"
                     story.append(Paragraph(f"• {a.section} ({a.timestamp.date()}): {score_str}", normal_style))
 
-                    # Full preview for Document AI Analysis using Preformatted for better formatting
+                    # Full preview for Document AI Analysis
                     if a.section == "Document AI Analysis":
                         try:
                             data = json.loads(a.data)
@@ -1790,7 +1852,7 @@ if authentication_status:
                         except:
                             pass
 
-                    # Full preview for AI Generated Leads using Preformatted
+                    # Full preview for AI Generated Leads
                     if a.section == "AI Generated Leads":
                         try:
                             data = json.loads(a.data)
