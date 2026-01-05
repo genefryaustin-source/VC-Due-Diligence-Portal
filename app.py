@@ -257,7 +257,9 @@ if authentication_status:
         "Sensitivity Analysis",
         "Monte Carlo Simulation",
         "Scenario Planning",
-        "Generate Report"
+        "Generate Report",
+        "CFIUS Compliance DD",
+        "Export Control Compliance DD"
     ]
 
     sidebar_selection = st.sidebar.selectbox("Navigate", pages)
@@ -350,7 +352,7 @@ if authentication_status:
             if inputs.get('gross_margin', 0) >= 70: score += 20
             elif inputs.get('gross_margin', 0) >= 50: score += 10
             if inputs.get('burn_multiple', 999) <= 1.5: score += 20
-        elif section in ["Legal DD", "Technical DD", "Operational DD", "Market DD", "Commercial DD"]:
+        elif section in ["Legal DD", "Technical DD", "Operational DD", "Market DD", "Commercial DD", "CFIUS Compliance DD", "Export Control Compliance DD"]:
             issues = sum(1 for v in inputs.values() if v)
             score = max(0, 100 - issues * 15)
         elif section == "Team Analysis":
@@ -687,8 +689,7 @@ if authentication_status:
                 if 'linkedin_expires' in st.session_state and time.time() > st.session_state['linkedin_expires']:
                     st.warning("LinkedIn token expired.")
                     if st.button("Refresh LinkedIn Token"):
-                        # Placeholder for refresh_token function - implement as needed
-                        st.info("Refresh token functionality not implemented yet.")
+                        pass  # Placeholder - actual refresh logic would require token handling
                 linkedin_token = st.session_state.get('linkedin_token', st.text_input("LinkedIn Access Token", type="password"))
                 company_vanity = st.text_input("Company Vanity Name or ID (e.g., linkedin)")
                 if st.button("Search LinkedIn"):
@@ -1051,7 +1052,6 @@ if authentication_status:
                         save_analysis("Deal Sourcing", manual_data)
                         st.success("Manual deal saved with uploaded documents.")
 
-        # Financial Due Diligence
         elif sidebar_selection == "Financial Due Diligence":
             st.header("🔍 Financial Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1158,7 +1158,6 @@ if authentication_status:
                 buffer.seek(0)
                 st.download_button("Export Financial Metrics", buffer, "financial_metrics.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # Legal Due Diligence
         elif sidebar_selection == "Legal Due Diligence":
             st.header("⚖️ Legal Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1207,7 +1206,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Technical Due Diligence
         elif sidebar_selection == "Technical Due Diligence":
             st.header("🛠️ Technical Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1256,7 +1254,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Operational Due Diligence
         elif sidebar_selection == "Operational Due Diligence":
             st.header("🏢 Operational Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1305,7 +1302,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Market Due Diligence
         elif sidebar_selection == "Market Due Diligence":
             st.header("🌍 Market Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1354,7 +1350,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Commercial Due Diligence
         elif sidebar_selection == "Commercial Due Diligence":
             st.header("💼 Commercial Due Diligence")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1403,7 +1398,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Team & Founder Analysis
         elif sidebar_selection == "Team & Founder Analysis":
             st.header("👥 Team & Founder Analysis")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1447,7 +1441,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # ESG & Responsible AI Check
         elif sidebar_selection == "ESG & Responsible AI Check":
             st.header("🌿 ESG & Responsible AI Check")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1488,7 +1481,6 @@ if authentication_status:
                     except Exception as e:
                         st.error(f"AI summary failed: {e}")
 
-        # Term Sheet Negotiation
         elif sidebar_selection == "Term Sheet Negotiation":
             st.header("📄 Term Sheet Negotiation Guide")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1500,7 +1492,6 @@ if authentication_status:
             st.markdown("- Protective provisions")
             st.markdown("- Pro-rata rights")
 
-        # Financial Model
         elif sidebar_selection == "Financial Model":
             st.header("📊 Interactive Financial Model")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1539,7 +1530,6 @@ if authentication_status:
                 output.seek(0)
                 st.download_button("Download Model", output, "financial_model.xlsx")
 
-        # DCF Valuation
         elif sidebar_selection == "DCF Valuation":
             st.header("💰 DCF Valuation")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1565,7 +1555,6 @@ if authentication_status:
                 buffer.seek(0)
                 st.download_button("Export DCF", buffer, "dcf_valuation.xlsx")
 
-        # Reverse DCF
         elif sidebar_selection == "Reverse DCF":
             st.header("🔄 Reverse DCF")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1583,7 +1572,6 @@ if authentication_status:
                 save_analysis("Reverse DCF", save_data)
                 st.success("Reverse DCF saved.")
 
-        # Comparable Analysis
         elif sidebar_selection == "Comparable Analysis":
             st.header("📈 Comparable Company Analysis")
             st.markdown(f"**Deal:** {current_deal.company_name}")
@@ -1613,12 +1601,10 @@ if authentication_status:
                     save_analysis("Comparable Analysis", save_data)
                     st.success("Comps analysis saved.")
 
-        # Market & Competitor Benchmarking
         elif sidebar_selection == "Market & Competitor Benchmarking":
             st.header("📊 Market & Competitor Benchmarking")
             st.markdown(f"**Deal:** {current_deal.company_name}")
 
-            # Industry-specific metric selection
             industry = st.selectbox("Select Industry", [
                 "SaaS / Software",
                 "FinTech",
@@ -1664,7 +1650,6 @@ if authentication_status:
             if industry == "Other":
                 industry = st.text_input("Specify Industry")
 
-            # Comprehensive metric definitions by industry
             metric_options = {
                 "SaaS / Software": ["ARR ($M)", "MRR Growth Rate (%)", "LTV/CAC Ratio", "Net Dollar Retention (%)", "Magic Number", "Rule of 40 Score", "Gross Margin (%)", "Burn Multiple"],
                 "FinTech": ["GMV ($M)", "Take Rate (%)", "TPV ($M)", "Active Users (M)", "Revenue ($M)", "AUM ($B)", "Loans Originated ($M)", "Default Rate (%)"],
@@ -1780,7 +1765,240 @@ if authentication_status:
                 except Exception as e:
                     st.error(f"AI suggestions failed: {e}")
 
-        # Generate Report
+        elif sidebar_selection == "Sensitivity Analysis":
+            st.header("📉 Sensitivity Analysis")
+            st.markdown(f"**Deal:** {current_deal.company_name}")
+            fcff_list = [-450, -250, 100, 900, 1925]
+            results = []
+            for r in np.linspace(0.25, 0.50, 11):
+                for g in np.linspace(0.01, 0.06, 6):
+                    if r <= g: continue
+                    pv_explicit = sum(fcff_list[i] / (1 + r)**(i+1) for i in range(5))
+                    tv = fcff_list[4] * (1 + g) / (r - g)
+                    pv_tv = tv / (1 + r)**5
+                    ev = pv_explicit + pv_tv
+                    results.append([f"{r*100:.0f}%", f"{g*100:.0f}%", round(ev)])
+            df = pd.DataFrame(results, columns=["Discount Rate", "Terminal Growth", "EV ($k)"])
+            pivot = df.pivot(index="Discount Rate", columns="Terminal Growth", values="EV ($k)")
+            st.dataframe(pivot.style.background_gradient())
+            save_data = pivot.to_dict()
+            save_analysis("Sensitivity", save_data)
+            st.success("Sensitivity analysis saved.")
+
+        elif sidebar_selection == "Monte Carlo Simulation":
+            st.header("🎲 Monte Carlo Simulation")
+            st.markdown(f"**Deal:** {current_deal.company_name}")
+            simulations = st.number_input("Number of Simulations", 1000, 10000, 5000)
+            mean_discount = st.slider("Mean Discount Rate (%)", 25.0, 50.0, 35.0) / 100
+            std_discount = st.slider("Std Dev Discount (%)", 1.0, 15.0, 5.0) / 100
+            mean_growth = st.slider("Mean Terminal Growth (%)", 0.0, 8.0, 3.0) / 100
+            std_growth = st.slider("Std Dev Growth (%)", 0.5, 5.0, 1.5) / 100
+            if st.button("Run Simulation"):
+                evs = []
+                fcff_list = [-450, -250, 100, 900, 1925]
+                for _ in range(int(simulations)):
+                    r = np.random.normal(mean_discount, std_discount)
+                    g = np.random.normal(mean_growth, std_growth)
+                    if r <= g or r < 0.1: continue
+                    pv_explicit = sum(fcff_list[i] / (1 + r)**(i+1) for i in range(5))
+                    tv = fcff_list[4] * (1 + g) / (r - g)
+                    pv_tv = tv / (1 + r)**5
+                    evs.append(pv_explicit + pv_tv)
+                if evs:
+                    mean_ev = np.mean(evs)
+                    p10 = np.percentile(evs, 10)
+                    p90 = np.percentile(evs, 90)
+                    st.metric("Mean EV", f"${mean_ev:,.0f}k")
+                    st.metric("P10 / P90", f"${p10:,.0f}k / ${p90:,.0f}k")
+                    chart = alt.Chart(pd.DataFrame({"EV": evs})).mark_bar().encode(alt.X("EV", bin=True), y='count()')
+                    st.altair_chart(chart, use_container_width=True)
+                    save_data = {"mean_ev": mean_ev, "p10": p10, "p90": p90}
+                    save_analysis("Monte Carlo", save_data)
+                    st.success("Monte Carlo simulation saved.")
+
+        elif sidebar_selection == "Scenario Planning":
+            st.header("🔮 Scenario Planning")
+            st.markdown(f"**Deal:** {current_deal.company_name}")
+            scenarios = ["Base Case", "Optimistic", "Pessimistic"]
+            scenario_inputs = {}
+            for scenario in scenarios:
+                with st.expander(f"{scenario} Assumptions"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        scenario_inputs[scenario] = {}
+                        scenario_inputs[scenario]["mrr"] = st.number_input(f"Starting MRR {scenario}", value=10000 if "Base" in scenario else 15000 if "Optimistic" in scenario else 5000, key=f"mrr_{scenario}")
+                        scenario_inputs[scenario]["growth"] = st.slider(f"Growth % {scenario}", 5.0, 30.0, 15.0 if "Base" in scenario else 25.0 if "Optimistic" in scenario else 5.0, key=f"growth_{scenario}") / 100
+                    with col2:
+                        scenario_inputs[scenario]["churn"] = st.slider(f"Churn % {scenario}", 1.0, 10.0, 4.0 if "Base" in scenario else 2.0 if "Optimistic" in scenario else 8.0, key=f"churn_{scenario}") / 100
+            if st.button("Generate Scenarios"):
+                months = 36
+                scenario_dfs = {}
+                for scenario in scenarios:
+                    mrr = [scenario_inputs[scenario]["mrr"]]
+                    for _ in range(months - 1):
+                        mrr.append(mrr[-1] * (1 + scenario_inputs[scenario]["growth"]) * (1 - scenario_inputs[scenario]["churn"]))
+                    df = pd.DataFrame({"Month": range(1, months+1), "MRR": mrr, "Scenario": scenario})
+                    scenario_dfs[scenario] = df
+                combined = pd.concat(scenario_dfs.values())
+                chart = alt.Chart(combined).mark_line().encode(x='Month', y='MRR', color='Scenario')
+                st.altair_chart(chart, use_container_width=True)
+                save_data = {s: scenario_dfs[s].to_dict() for s in scenarios}
+                save_analysis("Scenario Planning", save_data)
+                st.success("Scenario planning saved.")
+
+        elif sidebar_selection == "CFIUS Compliance DD":
+            st.header("🇺🇸 CFIUS Compliance Due Diligence")
+            st.markdown(f"**Deal:** {current_deal.company_name}")
+            st.info("Assess if the investment triggers CFIUS review for national security risks.")
+
+            with st.form("cfius_form"):
+                st.subheader("Transaction Details")
+                col1, col2 = st.columns(2)
+                with col1:
+                    foreign_investor = st.checkbox("Foreign Investor Involved")
+                    foreign_gov_interest = st.checkbox("Foreign Government Interest (>25% voting)")
+                    control_acquired = st.checkbox("Foreign Control Acquired")
+                with col2:
+                    non_controlling = st.checkbox("Non-Controlling Investment in TID Business")
+                    critical_tech = st.checkbox("Involves Critical Technology")
+                    sensitive_data = st.checkbox("Involves Sensitive Personal Data")
+                    critical_infra = st.checkbox("Involves Critical Infrastructure")
+                notes = st.text_area("Additional CFIUS Notes")
+                submitted = st.form_submit_button("Assess Jurisdiction")
+
+            if submitted:
+                # Jurisdiction Logic from Flowchart
+                if not foreign_investor:
+                    jurisdiction = "No Jurisdiction"
+                else:
+                    if control_acquired:
+                        jurisdiction = "Potential Jurisdiction - Control Transaction"
+                    elif non_controlling:
+                        if critical_tech or critical_infra or sensitive_data:
+                            jurisdiction = "Potential Jurisdiction - TID U.S. Business"
+                        else:
+                            jurisdiction = "No Jurisdiction"
+                    else:
+                        jurisdiction = "No Jurisdiction"
+
+                st.metric("CFIUS Jurisdiction", jurisdiction)
+
+                # Filing Recommendation
+                mandatory = foreign_gov_interest or (critical_tech and (control_acquired or non_controlling))
+                filing_type = "Mandatory Filing" if mandatory else "Voluntary Filing Recommended"
+                st.metric("Filing Requirement", filing_type)
+
+                save_data = {
+                    "foreign_investor": foreign_investor,
+                    "foreign_gov_interest": foreign_gov_interest,
+                    "control_acquired": control_acquired,
+                    "non_controlling": non_controlling,
+                    "critical_tech": critical_tech,
+                    "sensitive_data": sensitive_data,
+                    "critical_infra": critical_infra,
+                    "jurisdiction": jurisdiction,
+                    "filing_type": filing_type,
+                    "notes": notes
+                }
+                save_analysis("CFIUS Compliance DD", save_data)
+                st.success("CFIUS assessment saved.")
+
+                st.subheader("Compliance Checklist")
+                checklist_items = [
+                    "Screen foreign investors for government ties",
+                    "Assess if U.S. business is TID",
+                    "File declaration for quick review if applicable",
+                    "Prepare full notice if needed",
+                    "Include CFIUS reps in term sheet",
+                    "Monitor for post-closing changes"
+                ]
+                for item in checklist_items:
+                    st.checkbox(item, value=False)
+
+                st.subheader("CFIUS Filing Workflow Steps")
+                st.markdown("1. Determine Jurisdiction (using flowchart)\n2. Assess Mandatory vs Voluntary\n3. Prepare Filing (Declaration or Notice)\n4. Submit via CFIUS CMS (use 'Known Investor' portal if eligible for fast-track)\n5. CFIUS Review (30-45 days initial, possible investigation)\n6. Mitigation Agreements if Risks Identified\n7. Clearance or Presidential Decision")
+
+                if openai_client and st.button("Generate AI CFIUS Advice"):
+                    prompt = f"For deal {current_deal.company_name}, with foreign investor: {foreign_investor}, critical tech: {critical_tech}, provide CFIUS compliance recommendations including 2026 fast-track process."
+                    response = openai_client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": "You are a CFIUS expert."}, {"role": "user", "content": prompt}]
+                    )
+                    st.markdown("### AI CFIUS Advice")
+                    st.markdown(response.choices[0].message.content)
+
+        elif sidebar_selection == "Export Control Compliance DD":
+            st.header("🚫 Export Control & OFAC Sanctions Compliance Due Diligence")
+            st.markdown(f"**Deal:** {current_deal.company_name}")
+            st.info("Assess compliance with U.S. export controls (EAR/ITAR) and OFAC sanctions.")
+
+            with st.form("export_control_form"):
+                st.subheader("Export Control & Sanctions Details")
+                col1, col2 = st.columns(2)
+                with col1:
+                    controlled_tech = st.checkbox("Company Deals with Controlled Technology (e.g., dual-use)")
+                    defense_items = st.checkbox("ITAR-Controlled Items (defense/military)")
+                    dual_use = st.checkbox("EAR-Controlled Dual-Use Items")
+                    ofac_sdn_hit = st.checkbox("Potential SDN List Hit (OFAC)")
+                with col2:
+                    foreign_parties = st.checkbox("Involves Foreign Parties/Countries")
+                    restricted_entities = st.checkbox("Transactions with Restricted Entities/Countries (OFAC)")
+                    licenses_needed = st.checkbox("Requires Export Licenses")
+                    past_violations = st.checkbox("Past Violations or Investigations")
+                notes = st.text_area("Additional Export Control / OFAC Notes")
+                submitted = st.form_submit_button("Assess Compliance")
+
+            if submitted:
+                issues = sum([controlled_tech, defense_items, dual_use, foreign_parties, restricted_entities, licenses_needed, past_violations, ofac_sdn_hit])
+                score = max(0, 100 - issues * 12)
+                risk_level = "High Risk" if score < 50 else "Medium Risk" if score < 80 else "Low Risk"
+                st.metric("Export Control & OFAC Risk Level", risk_level)
+                if issues > 3:
+                    st.warning("High risks detected — recommend full compliance audit, license review, and OFAC screening.")
+                save_data = {
+                    "controlled_tech": controlled_tech,
+                    "defense_items": defense_items,
+                    "dual_use": dual_use,
+                    "foreign_parties": foreign_parties,
+                    "restricted_entities": restricted_entities,
+                    "licenses_needed": licenses_needed,
+                    "past_violations": past_violations,
+                    "ofac_sdn_hit": ofac_sdn_hit,
+                    "risk_level": risk_level,
+                    "notes": notes
+                }
+                save_analysis("Export Control Compliance DD", save_data)
+                st.success("Export control & OFAC assessment saved.")
+
+                st.subheader("Export Control & OFAC Compliance Checklist")
+                checklist_items = [
+                    "Classify products/tech (ECCN/USML for export controls)",
+                    "Screen all parties against OFAC SDN and restricted lists",
+                    "Screen against BIS Denied Persons/Entity List",
+                    "Obtain required export licenses (if applicable)",
+                    "Implement internal compliance program & training",
+                    "Maintain records for 5 years",
+                    "Include export/sanctions reps & warranties in agreements",
+                    "Conduct regular audits"
+                ]
+                for item in checklist_items:
+                    st.checkbox(item, value=False)
+
+                st.subheader("Workflow Steps")
+                st.markdown("1. Technology/Product Classification\n2. Party Screening (OFAC, BIS, etc.)\n3. License Determination\n4. Transaction Structuring\n5. Ongoing Monitoring\n6. Recordkeeping & Audits")
+
+                if openai_client and st.button("Generate AI Export Control & OFAC Advice"):
+                    prompt = f"For deal {current_deal.company_name}, with controlled tech: {controlled_tech}, foreign parties: {foreign_parties}, OFAC SDN potential: {ofac_sdn_hit}, provide export control and sanctions compliance recommendations."
+                    try:
+                        response = openai_client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": "You are an export control and OFAC sanctions expert."}, {"role": "user", "content": prompt}]
+                        )
+                        st.markdown("### AI Export Control & OFAC Advice")
+                        st.markdown(response.choices[0].message.content)
+                    except Exception as e:
+                        st.error(f"AI advice failed: {e}")
+
         elif sidebar_selection == "Generate Report":
             st.header("📑 Generate Comprehensive Report")
             st.markdown(f"**Deal:** {current_deal.company_name}")
